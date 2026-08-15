@@ -1,12 +1,7 @@
 """Parameterized 16S/18S pipeline entry points.
 
-The original algaeBricks entry scripts (process_16s_reads.py /
-process_18s_reads.py) were configured by editing module globals and had
-the full pipeline commented out in one file and un-runnable in another
-(process_reads.py had no imports). Here the full sequence is reconstructed
-from process_reads.py's complete logic and driven entirely by RunConfig +
-PrimerSet, so downstream projects call process_16s(config) / process_18s(config)
-without touching source.
+Runs are driven entirely by RunConfig + PrimerSet, so downstream projects
+call process_16s(config) / process_18s(config) without touching source.
 
 16S and 18S are identical except for the primer set and (optionally) the
 reference DB, so both delegate to _run().

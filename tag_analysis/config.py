@@ -1,9 +1,8 @@
 """Per-run configuration for the amplicon pipeline.
 
-This replaces the module-level globals (DATA_FILE_PATH, DATASET_NAME,
-OUTPUT_PATH, PATH_TO_SILVA_DB) that the original algaeBricks scripts
-mutated at import time. Every reusable entry point takes a RunConfig
-so no project needs to edit package source to configure a run.
+Per-run values (data path, output path, dataset name, reference DB) are
+carried on RunConfig rather than module-level globals, so no project needs
+to edit package source to configure a run.
 """
 
 import os

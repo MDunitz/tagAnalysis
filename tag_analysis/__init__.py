@@ -1,8 +1,6 @@
 """tag_analysis: importable 16S/18S amplicon (DADA2) processing pipeline.
 
-Extracted and refactored from MDunitz/algaeBricks
-(experiments/processing/genome_analysis/v2). Configure a run with RunConfig
-and call process_16s / process_18s.
+Configure a run with RunConfig and call process_16s / process_18s.
 """
 
 from .config import RunConfig, PrimerSet, PRIMERS_16S, PRIMERS_18S
