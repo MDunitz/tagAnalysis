@@ -1,0 +1,27 @@
+# Core scientific
+astropy
+numpy
+pandas
+scipy
+
+# Plotting
+bokeh
+
+# Google Sheets integration
+gspread
+google-auth
+# Shared Sheets-extraction package (provides `import labdata`; [auth] re-pulls the two above)
+labdata[auth] @ git+https://github.com/MDunitz/DataExtractionHelpers.git
+
+# Code quality
+black
+black[jupyter]
+flake8
+pytest
+pytest-cov
+
+# Notebook support
+ipykernel
+
+# Document conversion
+pandoc
