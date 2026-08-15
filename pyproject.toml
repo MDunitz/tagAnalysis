@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tag-analysis"
+version = "0.1.0"
+description = "Importable 16S/18S amplicon (DADA2) processing pipeline for Orphan lab tag data. Refactored from algaeBricks v2."
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0",
+    "bokeh>=3.0",
+    "seaborn>=0.12",
+    "iqplot>=0.3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+include = ["tag_analysis*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
