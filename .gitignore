@@ -1,0 +1,50 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Virtual environments
+.env/
+.env*
+.venv/
+venv/
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test/coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+coverage.xml
+*.cover
+
+# Generated outputs (regenerable)
+/figures/*
+/pdfs/*
+
+# IDE
+.vscode/
+.idea/
+
+# Data (large files tracked separately)
+data/local_data/*.csv
+data/local_data/*.xlsx
+data/local_data/*.json
+!data/local_data/README.md
+
+# Credentials (never commit)
+*.json
+!package.json
+credentials/
+service_account*.json

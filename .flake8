@@ -1,0 +1,12 @@
+[flake8]
+# E501 (line too long) is also passed via --ignore on the command line in
+# the Makefile; keeping it here so direct `flake8` invocations match.
+extend-ignore = E501
+
+# Scaffolding files intentionally import the canonical project utilities so
+# users see the standard imports when they copy the template. F401 here is
+# expected. Brief E may delete or replace some of these paths; the matching
+# entries become dead config and will be cleaned up in Brief I (polish).
+per-file-ignores =
+    templates/*.py:F401
+    experiments/processing/YEAR-MONTH-DATE_experiment_description/*.py:F401
