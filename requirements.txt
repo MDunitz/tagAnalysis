@@ -1,0 +1,6 @@
+# Dev/CI environment bootstrap.
+# Dependencies themselves are declared in pyproject.toml (single source of
+# truth); this installs the package editable with its test extras so
+# `pip install -r requirements.txt` sets up a full working environment
+# without duplicating the dependency list here.
+-e .[test]
