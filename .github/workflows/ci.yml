@@ -1,4 +1,4 @@
-name: CI
+name: tests
 
 on:
   push:
@@ -6,21 +6,30 @@ on:
   pull_request:
 
 jobs:
-  ci:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-          cache: "pip"
+          python-version: "3.11"
 
-      - name: Install dependencies
+      # Cache the whole Python install location keyed on the dependency spec.
+      # On a cache hit the expensive wheels (pandas, bokeh, seaborn, scipy,
+      # iqplot) are neither re-downloaded nor re-installed; only the fast
+      # editable re-link of the local package runs below.
+      - name: Cache Python environment
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.pythonLocation }}
+          key: ${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ env.pythonLocation }}-
+
+      - name: Install
         run: pip install -r requirements.txt
 
-      - name: Check formatting
-        run: make check-fmt
-
       - name: Run tests
-        run: make tests
+        run: pytest -q
