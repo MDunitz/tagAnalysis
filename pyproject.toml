@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7.0"]
+test = ["pytest>=7.0", "cutadapt>=5.0"]
 
 [tool.setuptools.packages.find]
 include = ["tag_analysis*"]
