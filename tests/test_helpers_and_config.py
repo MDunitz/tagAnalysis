@@ -152,15 +152,16 @@ def test_process_requires_primers_set():
         process(cfg)
 
 
-def test_custom_primers_flow_to_cutadapt():
+def test_custom_primers_flow_to_cutadapt(tmp_path):
     """A custom primer pair on the config reaches remove_primers_cutadapt."""
     from unittest import mock
     from tag_analysis import pipelines, process
     from tag_analysis.config import PrimerSet
     custom = PrimerSet(name="v3v4", fwd="CCTACGGG", rev="GACTACHV",
                        fwd_rc="CCCGTAGG", rev_rc="DBGTAGTC")
-    cfg = RunConfig(data_path="/d", output_path="/o", dataset_name="t",
-                    reference_db_path="/r.RData", primers=custom)
+    cfg = RunConfig(data_path=str(tmp_path / "d"), output_path=str(tmp_path / "o"),
+                    dataset_name="t", reference_db_path=str(tmp_path / "r.RData"),
+                    primers=custom)
     with mock.patch.object(pipelines, "remove_primers_cutadapt") as m_cut, \
          mock.patch.object(pipelines, "run_dada2_pipeline", return_value={}), \
          mock.patch.object(pipelines, "create_asv_outputs",
