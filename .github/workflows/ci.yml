@@ -11,22 +11,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Cache only the pip wheel/download cache (keyed on the dependency spec),
+      # not the installed environment. Wheels for the heavy deps (pandas, bokeh,
+      # scipy, cutadapt) are reused, but the package itself is always installed
+      # fresh, so a stale editable install can never carry between runs.
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      # Cache the whole Python install location keyed on the dependency spec.
-      # On a cache hit the expensive wheels (pandas, bokeh, seaborn, scipy,
-      # iqplot) are neither re-downloaded nor re-installed; only the fast
-      # editable re-link of the local package runs below.
-      - name: Cache Python environment
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.pythonLocation }}
-          key: ${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ env.pythonLocation }}-
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
 
       - name: Install
         run: pip install -r requirements.txt
