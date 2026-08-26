@@ -44,18 +44,24 @@ PRIMERS_18S = PrimerSet(
 
 @dataclass
 class RunConfig:
-    """Everything a single 16S or 18S run needs, with no global state.
+    """Everything a single amplicon run needs, with no global state.
 
-    data_path:      directory of raw fastq.gz for this amplicon (e.g. .../HelenThesis/16S)
+    data_path:      directory of raw fastq.gz for this amplicon
     output_path:    directory for pipeline outputs (created if absent)
     dataset_name:   label used in plot titles / filenames
-    reference_db_path: path to the taxonomy training set (SILVA .RData for 16S,
-                    PR2 for 18S). Made explicit so 18S runs are not forced onto SILVA.
+    reference_db_path: path to the taxonomy training set (e.g. SILVA .RData, PR2).
+                    Made explicit so each run chooses its own reference.
+    primers:        the PrimerSet used to generate these reads. Optional: if left
+                    None, process_16s / process_18s inject their standard pair, so
+                    existing calls keep working. Set it explicitly (or use the
+                    generic process()) to run any other primer pair without
+                    editing package source.
     """
     data_path: str
     output_path: str
     dataset_name: str
     reference_db_path: str
+    primers: "PrimerSet | None" = None
 
     # Derived paths (populated in __post_init__ so callers never build them).
     deprimered_path: str = field(init=False)
