@@ -37,10 +37,17 @@ _DEFAULT_DADA2_KWARGS = dict(
 )
 
 
-def _run(config: RunConfig, primers: PrimerSet, clean_count_file="ASVs_counts_clean.csv",
+def _run(config: RunConfig, clean_count_file="ASVs_counts_clean.csv",
          dada2_kwargs=None):
-    """Full amplicon pipeline for one primer set. Behavior-equivalent to the
-    original process_reads.py, parameterized by config + primers."""
+    """Full amplicon pipeline for one run. Behavior-equivalent to the
+    original process_reads.py, parameterized by config (primers come from
+    config.primers)."""
+    if config.primers is None:
+        raise ValueError(
+            "config.primers is not set. Use process_16s/process_18s, or set "
+            "config.primers to a PrimerSet and call process()."
+        )
+    primers = config.primers
     config.ensure_dirs()
     dada2_kwargs = {**_DEFAULT_DADA2_KWARGS, **(dada2_kwargs or {})}
 
@@ -103,12 +110,26 @@ def _run(config: RunConfig, primers: PrimerSet, clean_count_file="ASVs_counts_cl
     }
 
 
+def process(config: RunConfig, **kwargs):
+    """Run the full pipeline for any primer pair. Requires config.primers to be
+    set to a PrimerSet. Use this for non-standard primers; process_16s/process_18s
+    are convenience wrappers that inject the standard pairs."""
+    return _run(config, **kwargs)
+
+
 def process_16s(config: RunConfig, **kwargs):
-    """Run the full 16S pipeline. config.reference_db_path should point at a SILVA training set."""
-    return _run(config, PRIMERS_16S, **kwargs)
+    """Run the full 16S pipeline. Injects the standard 515F-Y/926R pair when
+    config.primers is unset; an explicitly set config.primers is respected.
+    config.reference_db_path should point at a 16S training set (e.g. SILVA)."""
+    if config.primers is None:
+        config.primers = PRIMERS_16S
+    return _run(config, **kwargs)
 
 
 def process_18s(config: RunConfig, **kwargs):
-    """Run the full 18S pipeline. config.reference_db_path should point at an 18S
-    training set (PR2 recommended; SILVA SSU also contains 18S but PR2 is standard)."""
-    return _run(config, PRIMERS_18S, **kwargs)
+    """Run the full 18S pipeline. Injects the standard V4 pair when config.primers
+    is unset; an explicitly set config.primers is respected. config.reference_db_path
+    should point at an 18S training set (PR2 recommended; SILVA SSU also contains 18S)."""
+    if config.primers is None:
+        config.primers = PRIMERS_18S
+    return _run(config, **kwargs)

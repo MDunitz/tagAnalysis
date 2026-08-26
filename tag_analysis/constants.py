@@ -5,8 +5,9 @@ taxonomic ranks, plot palette). Per-run configuration (data paths,
 dataset name, reference DB path) lives in `config.RunConfig`.
 """
 
-# --- 16S rRNA primers (515F/806R, Earth Microbiome / Orphan lab tag set) ---
-# Forward 515F, reverse 806R (Y/M/R = IUPAC degenerate bases).
+# --- 16S rRNA primers (515F-Y / 926R; Parada et al. 2016, Environ. Microbiol.) ---
+# 515F-Y forward, 926R reverse -> V4-V5 (~374 bp amplicon). 926R differs from the
+# V4-only 806R (GGACTACNVGGGTWTCTAAT); do not confuse the two. (Y/M/R = IUPAC.)
 FWD_SEQUENCE__16s = "GTGYCAGCMGCCGCGGTAA"
 REV_SEQUENCE__16s = "CCGYCAATTYMTTTRAGTTT"
 # Reverse complements (verified against sequences by test_primers.py).
