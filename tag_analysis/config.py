@@ -56,12 +56,18 @@ class RunConfig:
                     existing calls keep working. Set it explicitly (or use the
                     generic process()) to run any other primer pair without
                     editing package source.
+    binned_quality_bins: for NextSeq/NovaSeq data whose quality scores are binned,
+                    the bin values Illumina collapses Q-scores onto (e.g.
+                    [2, 12, 24, 40]). When set, DADA2 error learning uses a binned
+                    error function. Leave None for unbinned MiSeq data. Confirm the
+                    exact bins against the quality-profile heatmap per run.
     """
     data_path: str
     output_path: str
     dataset_name: str
     reference_db_path: str
     primers: "PrimerSet | None" = None
+    binned_quality_bins: "list | None" = None
 
     # Derived paths (populated in __post_init__ so callers never build them).
     deprimered_path: str = field(init=False)

@@ -174,3 +174,95 @@ def test_custom_primers_flow_to_cutadapt(tmp_path):
         process(cfg)
     args, _ = m_cut.call_args
     assert args[1] == "CCTACGGG" and args[2] == "GACTACHV"
+
+
+# ---------- binned quality scores (NextSeq/NovaSeq) ----------
+
+def test_learn_errors_injects_binned_errfun_when_bins_set():
+    """With binned_quality_bins, the R script uses makeBinnedQualErrfun and
+    passes errorEstimationFunction to both learnErrors calls."""
+    from tag_analysis import etl
+    with mock.patch.object(etl, "_execute_r_script") as m:
+        etl.learn_errors_and_denoise(
+            '"f1.fastq.gz"', '"r1.fastq.gz"', '"s1"', "/out",
+            binned_quality_bins=[2, 12, 24, 40],
+        )
+    r_script = m.call_args.args[0]
+    assert "makeBinnedQualErrfun(c(2, 12, 24, 40))" in r_script
+    assert r_script.count("errorEstimationFunction=binQ") == 2
+
+
+def test_learn_errors_omits_errfun_when_bins_none():
+    """Default (unbinned) path: no makeBinnedQualErrfun, plain learnErrors."""
+    from tag_analysis import etl
+    with mock.patch.object(etl, "_execute_r_script") as m:
+        etl.learn_errors_and_denoise(
+            '"f1.fastq.gz"', '"r1.fastq.gz"', '"s1"', "/out",
+            binned_quality_bins=None,
+        )
+    r_script = m.call_args.args[0]
+    assert "makeBinnedQualErrfun" not in r_script
+    assert "errorEstimationFunction" not in r_script
+
+
+def test_learn_errors_coerces_bins_to_ints():
+    """Bin values are rendered as ints (guards against '2.0' etc in R)."""
+    from tag_analysis import etl
+    with mock.patch.object(etl, "_execute_r_script") as m:
+        etl.learn_errors_and_denoise(
+            '"f1.fastq.gz"', '"r1.fastq.gz"', '"s1"', "/out",
+            binned_quality_bins=[2.0, 12, 24, 40],
+        )
+    assert "makeBinnedQualErrfun(c(2, 12, 24, 40))" in m.call_args.args[0]
+
+
+def test_runconfig_binned_bins_defaults_none():
+    cfg = RunConfig(data_path="/d", output_path="/o", dataset_name="t",
+                    reference_db_path="/r.RData")
+    assert cfg.binned_quality_bins is None
+
+
+def test_runconfig_binned_bins_flows_to_dada2():
+    """RunConfig.binned_quality_bins reaches run_dada2_pipeline as a kwarg."""
+    from tag_analysis import pipelines, process
+    cfg = RunConfig(data_path="/d", output_path="/o", dataset_name="t",
+                    reference_db_path="/r.RData", primers=PRIMERS_16S,
+                    binned_quality_bins=[2, 12, 24, 40])
+    with mock.patch.object(pipelines, "remove_primers_cutadapt"), \
+         mock.patch.object(pipelines, "run_dada2_pipeline", return_value={}) as m_d, \
+         mock.patch.object(pipelines, "create_asv_outputs",
+                           return_value=(pd.DataFrame({"ASV_ID": ["ASV_1"], "sequence": ["ACGT"]}), None)), \
+         mock.patch.object(pipelines, "assign_taxonomy", return_value=pd.DataFrame()), \
+         mock.patch.object(pipelines, "remove_contaminants",
+                           return_value=(pd.DataFrame(), pd.DataFrame(), [], [False])), \
+         mock.patch.object(pipelines, "prepare_data_for_contamination_plot", return_value=pd.DataFrame()), \
+         mock.patch.object(pipelines, "create_contamination_plot"), \
+         mock.patch.object(pipelines, "prepare_relative_abundance_data", return_value=pd.DataFrame()), \
+         mock.patch.object(pipelines, "create_relative_abundance_stackbars"), \
+         mock.patch.object(pipelines.pd, "read_csv",
+                           return_value=pd.DataFrame({"s1": [1.0]}, index=["ASV_1"])):
+        process(cfg)
+    assert m_d.call_args.kwargs["binned_quality_bins"] == [2, 12, 24, 40]
+
+
+def test_explicit_dada2_kwarg_overrides_config_bins():
+    """An explicit dada2_kwargs binned value wins over the RunConfig field."""
+    from tag_analysis import pipelines, process
+    cfg = RunConfig(data_path="/d", output_path="/o", dataset_name="t",
+                    reference_db_path="/r.RData", primers=PRIMERS_16S,
+                    binned_quality_bins=[2, 12, 24, 40])
+    with mock.patch.object(pipelines, "remove_primers_cutadapt"), \
+         mock.patch.object(pipelines, "run_dada2_pipeline", return_value={}) as m_d, \
+         mock.patch.object(pipelines, "create_asv_outputs",
+                           return_value=(pd.DataFrame({"ASV_ID": ["ASV_1"], "sequence": ["ACGT"]}), None)), \
+         mock.patch.object(pipelines, "assign_taxonomy", return_value=pd.DataFrame()), \
+         mock.patch.object(pipelines, "remove_contaminants",
+                           return_value=(pd.DataFrame(), pd.DataFrame(), [], [False])), \
+         mock.patch.object(pipelines, "prepare_data_for_contamination_plot", return_value=pd.DataFrame()), \
+         mock.patch.object(pipelines, "create_contamination_plot"), \
+         mock.patch.object(pipelines, "prepare_relative_abundance_data", return_value=pd.DataFrame()), \
+         mock.patch.object(pipelines, "create_relative_abundance_stackbars"), \
+         mock.patch.object(pipelines.pd, "read_csv",
+                           return_value=pd.DataFrame({"s1": [1.0]}, index=["ASV_1"])):
+        process(cfg, dada2_kwargs={"binned_quality_bins": None})
+    assert m_d.call_args.kwargs["binned_quality_bins"] is None
