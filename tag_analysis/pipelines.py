@@ -50,6 +50,9 @@ def _run(config: RunConfig, clean_count_file="ASVs_counts_clean.csv",
     primers = config.primers
     config.ensure_dirs()
     dada2_kwargs = {**_DEFAULT_DADA2_KWARGS, **(dada2_kwargs or {})}
+    # RunConfig.binned_quality_bins sets the dada2 default for the dataset; an
+    # explicit dada2_kwargs["binned_quality_bins"] (if passed) still wins.
+    dada2_kwargs.setdefault("binned_quality_bins", config.binned_quality_bins)
 
     # 1. Primer removal (cutadapt)
     remove_primers_cutadapt(

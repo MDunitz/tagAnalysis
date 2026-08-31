@@ -79,11 +79,32 @@ def learn_errors_and_denoise(r_filtered_forward_reads, r_filtered_reverse_reads,
                            err_rev_reads_file="err_reverse_reads.rds",
                            dada_fwd_file="dada_forward.rds",
                            dada_rev_file="dada_reverse.rds",
+                           binned_quality_bins=None,
                            verbose=False,
                            ):
+    """Learn error rates and perform denoising.
+
+    binned_quality_bins: for instruments that emit binned quality scores
+        (NextSeq/NovaSeq), the list of bin values Illumina collapses Q-scores
+        onto, e.g. [2, 12, 24, 40]. When provided, learnErrors uses a binned
+        error-estimation function (makeBinnedQualErrfun) so the error model is
+        learned correctly for binned data. When None (default), the standard
+        loess error function is used -- correct for unbinned MiSeq data, so
+        older datasets are unaffected. Confirm the exact bins against the
+        quality-profile heatmap per run; Illumina's binning can change.
+    """
     verbose = str(verbose).upper()
-    """Learn error rates and perform denoising"""
-    
+
+    # Build the errorEstimationFunction argument. For binned data, learnErrors
+    # must be told the bins via makeBinnedQualErrfun; otherwise the default
+    # (loess) is used by omitting the argument entirely.
+    if binned_quality_bins is not None:
+        bins_r = ", ".join(str(int(b)) for b in binned_quality_bins)
+        err_fn_setup = f"binQ <- makeBinnedQualErrfun(c({bins_r}))"
+        err_fn_arg = ", errorEstimationFunction=binQ"
+    else:
+        err_fn_setup = ""
+        err_fn_arg = ""
 
     r_script = f"""
     library(dada2)
@@ -92,9 +113,11 @@ def learn_errors_and_denoise(r_filtered_forward_reads, r_filtered_reverse_reads,
     filtered_reverse_reads <- c({r_filtered_reverse_reads})
     samples <- c({r_samples})
 
+    {err_fn_setup}
+
     # Learn error rates
-    err_forward_reads <- learnErrors(filtered_forward_reads, multithread={multithread})
-    err_reverse_reads <- learnErrors(filtered_reverse_reads, multithread={multithread})
+    err_forward_reads <- learnErrors(filtered_forward_reads, multithread={multithread}{err_fn_arg})
+    err_reverse_reads <- learnErrors(filtered_reverse_reads, multithread={multithread}{err_fn_arg})
 
     # Dereplicate
     derep_forward <- derepFastq(filtered_forward_reads, verbose={verbose})

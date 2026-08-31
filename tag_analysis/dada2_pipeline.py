@@ -49,7 +49,8 @@ def run_dada2_pipeline(path_to_fastq_files, path_to_output_dir, dataset_name, **
         file_info['r_samples'],
         output_dir=path_to_output_dir,
         multithread=kwargs.get('multithread', 8),
-        pool=kwargs.get('pool', "pseudo")
+        pool=kwargs.get('pool', "pseudo"),
+        binned_quality_bins=kwargs.get('binned_quality_bins', None)
     )
     
     # Step 5: Merge pairs and remove chimeras
