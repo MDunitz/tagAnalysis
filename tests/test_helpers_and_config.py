@@ -222,12 +222,12 @@ def test_runconfig_binned_bins_defaults_none():
     assert cfg.binned_quality_bins is None
 
 
-def test_runconfig_binned_bins_flows_to_dada2():
+def test_runconfig_binned_bins_flows_to_dada2(tmp_path):
     """RunConfig.binned_quality_bins reaches run_dada2_pipeline as a kwarg."""
     from tag_analysis import pipelines, process
-    cfg = RunConfig(data_path="/d", output_path="/o", dataset_name="t",
-                    reference_db_path="/r.RData", primers=PRIMERS_16S,
-                    binned_quality_bins=[2, 12, 24, 40])
+    cfg = RunConfig(data_path=str(tmp_path / "d"), output_path=str(tmp_path / "o"),
+                    dataset_name="t", reference_db_path=str(tmp_path / "r.RData"),
+                    primers=PRIMERS_16S, binned_quality_bins=[2, 12, 24, 40])
     with mock.patch.object(pipelines, "remove_primers_cutadapt"), \
          mock.patch.object(pipelines, "run_dada2_pipeline", return_value={}) as m_d, \
          mock.patch.object(pipelines, "create_asv_outputs",
@@ -245,12 +245,12 @@ def test_runconfig_binned_bins_flows_to_dada2():
     assert m_d.call_args.kwargs["binned_quality_bins"] == [2, 12, 24, 40]
 
 
-def test_explicit_dada2_kwarg_overrides_config_bins():
+def test_explicit_dada2_kwarg_overrides_config_bins(tmp_path):
     """An explicit dada2_kwargs binned value wins over the RunConfig field."""
     from tag_analysis import pipelines, process
-    cfg = RunConfig(data_path="/d", output_path="/o", dataset_name="t",
-                    reference_db_path="/r.RData", primers=PRIMERS_16S,
-                    binned_quality_bins=[2, 12, 24, 40])
+    cfg = RunConfig(data_path=str(tmp_path / "d"), output_path=str(tmp_path / "o"),
+                    dataset_name="t", reference_db_path=str(tmp_path / "r.RData"),
+                    primers=PRIMERS_16S, binned_quality_bins=[2, 12, 24, 40])
     with mock.patch.object(pipelines, "remove_primers_cutadapt"), \
          mock.patch.object(pipelines, "run_dada2_pipeline", return_value={}) as m_d, \
          mock.patch.object(pipelines, "create_asv_outputs",
