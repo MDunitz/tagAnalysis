@@ -206,9 +206,6 @@ def create_stackbar_plot(relative_long_df, taxonomic_level, output_file, colors=
         color_map["Other"] = "#808080"  # Grey
     
     # Pivot to wide format: one row per sample, one column per taxon.
-    # A single ColumnDataSource + one vbar_stack call yields len(taxa)
-    # renderers instead of len(samples) * len(taxa), which is what made
-    # the old per-bar output unloadable in a browser.
     wide_df = (
         agg_df.pivot_table(index='sample', columns=taxonomic_level,
                            values='relabund', fill_value=0)
