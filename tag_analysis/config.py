@@ -48,6 +48,10 @@ class RunConfig:
 
     data_path:      directory of raw fastq.gz for this amplicon
     output_path:    directory for pipeline outputs (created if absent)
+    img_dir:        directory for generated plots/images. Defaults to
+                    output_path/imgs; set it elsewhere (e.g. an untracked
+                    outputs/ dir) to keep small analysis products and large
+                    regenerable images in different locations.
     dataset_name:   label used in plot titles / filenames
     reference_db_path: path to the taxonomy training set (e.g. SILVA .RData, PR2).
                     Made explicit so each run chooses its own reference.
@@ -73,13 +77,15 @@ class RunConfig:
     deprimered_path: str = field(init=False)
     counts_file_path: str = field(init=False)
     taxonomy_file_path: str = field(init=False)
-    img_dir: str = field(init=False)
+
+    img_dir: "str | None" = None
 
     def __post_init__(self):
         self.deprimered_path = os.path.join(self.data_path, "fastq_cutadapt")
         self.counts_file_path = os.path.join(self.output_path, "ASVs_counts.csv")
         self.taxonomy_file_path = os.path.join(self.output_path, "ASV_taxonomy.csv")
-        self.img_dir = os.path.join(self.output_path, "imgs")
+        if self.img_dir is None:
+            self.img_dir = os.path.join(self.output_path, "imgs")
 
     def ensure_dirs(self):
         """Create output directories if they do not yet exist."""
