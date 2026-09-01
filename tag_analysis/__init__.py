@@ -7,7 +7,7 @@ from .config import RunConfig, PrimerSet, PRIMERS_16S, PRIMERS_18S
 from .pipelines import process, process_16s, process_18s
 from . import constants
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "RunConfig",
