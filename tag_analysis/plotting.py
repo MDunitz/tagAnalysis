@@ -205,10 +205,23 @@ def create_stackbar_plot(relative_long_df, taxonomic_level, output_file, colors=
     if "Other" in color_map:
         color_map["Other"] = "#808080"  # Grey
     
+    # Pivot to wide format: one row per sample, one column per taxon.
+    # A single ColumnDataSource + one vbar_stack call yields len(taxa)
+    # renderers instead of len(samples) * len(taxa), which is what made
+    # the old per-bar output unloadable in a browser.
+    wide_df = (
+        agg_df.pivot_table(index='sample', columns=taxonomic_level,
+                           values='relabund', fill_value=0)
+        .reindex(samples)
+        .reindex(columns=taxa, fill_value=0)
+        .reset_index()
+    )
+    source = ColumnDataSource(wide_df)
+
     hover = HoverTool(tooltips=[
           ("Sample", "@sample"),
-          (taxonomic_level.title(), "@taxon"),
-          ("Abundance", "@abundance{0.00}%")
+          (taxonomic_level.title(), "$name"),
+          ("Abundance", "@$name{0.00}%")
       ])
     # Create figure
     p = figure(
@@ -220,11 +233,15 @@ def create_stackbar_plot(relative_long_df, taxonomic_level, output_file, colors=
         tools=[hover, "pan", "wheel_zoom", "box_zoom", "reset", "save"]
 
     )
-    legend_added = set()
-    # Create stacked bars for each sample
-    for sample in samples:
-        sample_df = agg_df[agg_df['sample'] == sample]
-        p = create_sample_stackbar(p, sample, sample_df, taxa, taxonomic_level, color_map)
+    p.vbar_stack(
+        taxa,
+        x='sample',
+        width=0.8,
+        source=source,
+        color=[color_map[t] for t in taxa],
+        alpha=0.8,
+        legend_label=[str(t)[:30] for t in taxa],
+    )
     
     # Styling
     p.xaxis.major_label_orientation = 1.2
@@ -243,38 +260,31 @@ def create_stackbar_plot(relative_long_df, taxonomic_level, output_file, colors=
     
     return p
 
-def create_sample_stackbar(p, sample, sample_df, taxa, taxonomic_level, color_map):
-    bottom = 0
-    
-    for taxon in taxa:
-        taxon_df = sample_df[sample_df[taxonomic_level] == taxon]
-        height = taxon_df['relabund'].iloc[0]
-        top = bottom + height
-        
-        # Necessary for the hover tool to work
-        source = ColumnDataSource(data={
-            'x': [sample],
-            'sample': [sample],
-            'taxon': [str(taxon)],
-            'abundance': [height],
-            'bottom': [bottom],
-            'top': [top]
-        })
-        
-        legend_label = str(taxon)[:30]
-        p.vbar(
-          x='x', 
-          top='top', 
-          bottom='bottom',
-          width=0.8, 
-          color=color_map[taxon], 
-          alpha=0.8,
-          legend_label=legend_label,
-          source=source
-      )
-        bottom = top
+def replot_relative_abundance(counts_file_path, taxonomy_file_path, output_dir,
+                              taxonomic_levels=['phylum', 'genus', 'species'],
+                              filter_patterns=None, sample_subset=None,
+                              colors=None, dataset_name=None):
+    """
+    Regenerate relative-abundance stackbar plots from persisted pipeline
+    outputs without rerunning the pipeline.
 
-    return p
+    Reads the counts table (e.g. ASVs_counts.csv or the decontaminated
+    clean counts file) and ASV_taxonomy.csv, rebuilds the long-format
+    relative abundance dataframe, and rewrites the HTML plots.
+    """
+    from .etl import prepare_relative_abundance_data
+
+    relative_long_df = prepare_relative_abundance_data(
+        counts_file_path, taxonomy_file_path
+    )
+    return create_relative_abundance_stackbars(
+        relative_long_df, output_dir,
+        taxonomic_levels=taxonomic_levels,
+        filter_patterns=filter_patterns,
+        sample_subset=sample_subset,
+        colors=colors,
+        dataset_name=dataset_name,
+    )
 
 def create_relative_abundance_stackbars(relative_long_df, output_dir, 
                                        taxonomic_levels=['phylum', 'genus', 'species'],
