@@ -76,3 +76,39 @@ def test_stackbar_preserves_totals(tmp_path, relabund_long_df):
     wide = pd.DataFrame(dict(source.data)).drop(columns=["sample", "index"])
     row_sums = wide.sum(axis=1).to_numpy()
     assert np.allclose(row_sums, 100.0), "stacked segments must sum to 100% per sample"
+
+
+def test_stackbars_write_to_custom_img_dir(tmp_path, relabund_long_df):
+    """img_dir separates regenerable images from the analysis-product dir."""
+    out_dir = tmp_path / "transformed"
+    img_dir = tmp_path / "outputs"
+    out_dir.mkdir()
+
+    from tag_analysis.plotting import create_relative_abundance_stackbars
+
+    plots = create_relative_abundance_stackbars(
+        relabund_long_df, str(out_dir),
+        taxonomic_levels=["species"],
+        img_dir=str(img_dir),
+    )
+    assert plots == [str(img_dir / "relative_abundance_species.html")]
+    assert (img_dir / "relative_abundance_species.html").exists()
+    # nothing image-shaped leaked into the output dir
+    assert list(out_dir.iterdir()) == []
+
+
+def test_runconfig_img_dir_default_and_override(tmp_path):
+    from tag_analysis import RunConfig
+
+    default_cfg = RunConfig(
+        data_path=str(tmp_path / "d"), output_path=str(tmp_path / "o"),
+        dataset_name="x", reference_db_path="ref.RData",
+    )
+    assert default_cfg.img_dir == str(tmp_path / "o" / "imgs")
+
+    custom = RunConfig(
+        data_path=str(tmp_path / "d"), output_path=str(tmp_path / "o"),
+        dataset_name="x", reference_db_path="ref.RData",
+        img_dir=str(tmp_path / "outputs"),
+    )
+    assert custom.img_dir == str(tmp_path / "outputs")
