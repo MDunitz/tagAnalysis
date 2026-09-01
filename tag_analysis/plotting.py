@@ -9,6 +9,7 @@ import seaborn as sns
 import iqplot
 
 from .helper_functions import _execute_r_script
+from .etl import prepare_relative_abundance_data
 
 
 def create_read_count_plots(melted_data, pct_data, output_file="read_count_tracking.html"):
@@ -269,8 +270,6 @@ def replot_relative_abundance(counts_file_path, taxonomy_file_path, output_dir,
     clean counts file) and ASV_taxonomy.csv, rebuilds the long-format
     relative abundance dataframe, and rewrites the HTML plots.
     """
-    from .etl import prepare_relative_abundance_data
-
     relative_long_df = prepare_relative_abundance_data(
         counts_file_path, taxonomy_file_path
     )
