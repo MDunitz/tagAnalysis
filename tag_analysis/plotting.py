@@ -69,15 +69,17 @@ def create_read_count_plots(melted_data, pct_data, output_file="read_count_track
     save(column(p1, p2), filename=output_file)
     print(f"Plots saved as '{output_file}'")
 
-def generate_quality_profile_plots(forward_reads, reverse_reads, dataset_name, output_dir, plot_count=3):
+def generate_quality_profile_plots(forward_reads, reverse_reads, dataset_name, output_dir, plot_count=3, img_dir=None):
     """
     Generate quality profile plots using R/ggplot2
     Must be written in R to take advantage of dada functionality
     """
-    os.makedirs(f"{output_dir}/imgs/{dataset_name}", exist_ok=True)
+    if img_dir is None:
+        img_dir = f"{output_dir}/imgs"
+    os.makedirs(f"{img_dir}/{dataset_name}", exist_ok=True)
 
-    fwd_file = f"{output_dir}/imgs/{dataset_name}/read_quality_fwd.png"
-    rvr_file = f"{output_dir}/imgs/{dataset_name}/read_quality_rvr.png"
+    fwd_file = f"{img_dir}/{dataset_name}/read_quality_fwd.png"
+    rvr_file = f"{img_dir}/{dataset_name}/read_quality_rvr.png"
     
     forward_read_list = ', '.join([f'"{f}"' for f in forward_reads[:min(plot_count, len(forward_reads))]])
     reverse_read_list = ', '.join([f'"{f}"' for f in reverse_reads[:min(plot_count, len(reverse_reads))]])
@@ -261,7 +263,7 @@ def create_stackbar_plot(relative_long_df, taxonomic_level, output_file, colors=
 def replot_relative_abundance(counts_file_path, taxonomy_file_path, output_dir,
                               taxonomic_levels=['phylum', 'genus', 'species'],
                               filter_patterns=None, sample_subset=None,
-                              colors=None, dataset_name=None):
+                              colors=None, dataset_name=None, img_dir=None):
     """
     Regenerate relative-abundance stackbar plots from persisted pipeline
     outputs without rerunning the pipeline.
@@ -280,11 +282,13 @@ def replot_relative_abundance(counts_file_path, taxonomy_file_path, output_dir,
         sample_subset=sample_subset,
         colors=colors,
         dataset_name=dataset_name,
+        img_dir=img_dir,
     )
 
 def create_relative_abundance_stackbars(relative_long_df, output_dir, 
                                        taxonomic_levels=['phylum', 'genus', 'species'],
-                                       filter_patterns=None, sample_subset=None, colors=None, dataset_name=None):
+                                       filter_patterns=None, sample_subset=None, colors=None, dataset_name=None,
+                                       img_dir=None):
     """
     Create relative abundance stacked bar plots at different taxonomic levels
     
@@ -295,6 +299,10 @@ def create_relative_abundance_stackbars(relative_long_df, output_dir,
     filter_patterns: Dict of {level: pattern} to filter specific taxa
     """
     
+    if img_dir is None:
+        img_dir = f"{output_dir}/imgs"
+    os.makedirs(img_dir, exist_ok=True)
+
     plots_created = []
     
     # Create plots for each taxonomic level
@@ -302,7 +310,7 @@ def create_relative_abundance_stackbars(relative_long_df, output_dir,
         if level in relative_long_df.columns:
             
             # Standard plot
-            output_file = f"{output_dir}/imgs/relative_abundance_{level}.html"
+            output_file = f"{img_dir}/relative_abundance_{level}.html"
             title = f"{dataset_name}, {level}"
             create_stackbar_plot(relative_long_df, level, output_file, sample_subset=sample_subset, colors=colors, title=title)
             plots_created.append(output_file)
@@ -310,7 +318,7 @@ def create_relative_abundance_stackbars(relative_long_df, output_dir,
             # Filtered plot if pattern specified
             if filter_patterns and level in filter_patterns:
                 pattern = filter_patterns[level]
-                filtered_output_file = f"{output_dir}/relative_abundance_{level}_{pattern.lower()}.html"
+                filtered_output_file = f"{img_dir}/relative_abundance_{level}_{pattern.lower()}.html"
                 title = f"{title}, {pattern.lower()}"
                 create_stackbar_plot(relative_long_df, level, filtered_output_file, filter_pattern=pattern, sample_subset=sample_subset, colors=colors, title=title)
                 plots_created.append(filtered_output_file)

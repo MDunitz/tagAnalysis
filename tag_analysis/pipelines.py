@@ -67,6 +67,7 @@ def _run(config: RunConfig, clean_count_file="ASVs_counts_clean.csv",
         path_to_fastq_files=config.deprimered_path,
         path_to_output_dir=config.output_path,
         dataset_name=config.dataset_name,
+        img_dir=config.img_dir,
         **dada2_kwargs,
     )
 
@@ -101,6 +102,7 @@ def _run(config: RunConfig, clean_count_file="ASVs_counts_clean.csv",
     create_relative_abundance_stackbars(
         relative_abundance_df, config.output_path,
         taxonomic_levels=RANKS, colors=COLORS,
+        img_dir=config.img_dir,
     )
 
     return {

@@ -4,8 +4,10 @@ from .plotting import create_read_count_plots, generate_quality_profile_plots
 from .etl import filter_and_trim_reads, learn_errors_and_denoise, merge_pairs_and_remove_chimeras, create_summary_table, prepare_plotting_data
 
 
-def run_dada2_pipeline(path_to_fastq_files, path_to_output_dir, dataset_name, **kwargs):
+def run_dada2_pipeline(path_to_fastq_files, path_to_output_dir, dataset_name, img_dir=None, **kwargs):
     """Main pipeline function that orchestrates all steps"""
+    if img_dir is None:
+        img_dir = os.path.join(path_to_output_dir, "imgs")
     
     # Step 1: Generate all file paths and sample names
     print("Step 1: Generating file paths and sample names...")
@@ -19,7 +21,8 @@ def run_dada2_pipeline(path_to_fastq_files, path_to_output_dir, dataset_name, **
         file_info['reverse_reads'], 
         dataset_name,
         path_to_output_dir,
-        plot_count=kwargs.get('quality_plot_count', 3)
+        plot_count=kwargs.get('quality_plot_count', 3),
+        img_dir=img_dir,
     )
     
     # TODO (OPTIONAL) quantitatively figure out trim lengths
@@ -74,7 +77,7 @@ def run_dada2_pipeline(path_to_fastq_files, path_to_output_dir, dataset_name, **
     # Step 7: Prepare plotting data and create plots
     print("Step 7: Creating read retention plots...")
     melted_data, pct_data = prepare_plotting_data(output_file_dir=path_to_output_dir)
-    read_count_plot_file_path = os.path.join(path_to_output_dir, "imgs", kwargs.get('plot_output', "read_count_tracking.html"))
+    read_count_plot_file_path = os.path.join(img_dir, kwargs.get('plot_output', "read_count_tracking.html"))
     create_read_count_plots(melted_data, pct_data, output_file=read_count_plot_file_path)
     print("\nDADA2 pipeline completed successfully!")
     

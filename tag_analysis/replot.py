@@ -35,6 +35,8 @@ def main():
     parser.add_argument("--levels", nargs="+", default=RANKS,
                         help=f"Taxonomic levels to plot (default: {RANKS})")
     parser.add_argument("--dataset-name", default=None, help="Title prefix for plots")
+    parser.add_argument("--img-dir", default=None,
+                        help="Directory for the regenerated plots (default: INPUT_DIR/imgs)")
     args = parser.parse_args()
 
     counts_file = args.counts_file or default_counts_file(args.input_dir)
@@ -45,6 +47,7 @@ def main():
         taxonomic_levels=args.levels,
         colors=COLORS,
         dataset_name=args.dataset_name,
+        img_dir=args.img_dir,
     )
     print(f"Regenerated {len(plots)} plots from {counts_file}")
 
