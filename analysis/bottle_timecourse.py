@@ -1,43 +1,67 @@
-"""Per-bottle community timecourse grid.
+"""Per-bottle community timecourse grid, keyed to saltyBiomass batch data.
 
-Lays out one row per incubation bottle and one column per amplicon
+Lays out one row per incubation batch and one column per amplicon
 (16S on the left, 18S on the right). Each cell is a stacked relative
 abundance bar chart across timepoints (T0, T1, T2, ...), so community
-shifts within a bottle read left-to-right and the same bottle's
+shifts within a batch read left-to-right and the same batch's
 prokaryotic vs. eukaryotic response reads across a row.
 
-Row order is caller-controlled; `bottle_order_by_water_activity` derives
-it from a bottle metadata table (highest a_w on top).
+Row order comes from measured water activity in the saltyBiomass
+transformed data (`ISQ_DATA_*.ecsv`): highest a_w on top. The same
+file supplies gas-production timeseries for community-vs-gas
+comparison (`load_gas_timeseries`).
 
-Inputs are the persisted DADA2 pipeline outputs:
+Keys are canonicalized to integers so the three ID spellings in play
+("Exp03" in fastq names, "Exp003" in the ECSV Experiment column,
+"Exp_03_B01_R01" in Sample IDs) all merge:
+  experiment: int (3), batch: int (1)
+
+Amplicon inputs are the persisted DADA2 pipeline outputs:
   - sequence table (samples x sequences, chimera-removed), comma-separated
   - ASV_taxonomy.csv (tab-separated, as written by etl.assign_taxonomy)
-
-Sample names are the filtered fastq filenames, e.g.
-  GP_52_Exp03_B01_T0_S147_R1_filtered.fastq.gz
 """
 
 import re
 
 import pandas as pd
+from astropy.table import Table
+from bokeh.io import output_file
 from bokeh.layouts import gridplot
 from bokeh.models import ColumnDataSource, HoverTool, Title
 from bokeh.plotting import figure, save
-from bokeh.io import output_file
 import seaborn as sns
 
 from tag_analysis.constants import COLORS
 
 SAMPLE_NAME_RE = re.compile(
-    r"GP_\d+_(?P<experiment>Exp\d+)_(?P<bottle>B\d+)_(?P<timepoint>T\d+)"
+    r"GP_\d+_(?P<experiment>Exp_?\d+)_(?P<batch>B\d+)_(?P<timepoint>T\d+)"
     r"(?P<wash>_wash)?_S\d+"
 )
 
+# Gas channels treated as production series. CH4 uses the FID channel;
+# the MS m/z 15 CH4 channel is diagnostic-only in saltyBiomass
+# (constants.PRODUCTION_GASES) and is excluded here for the same reason.
+PRODUCTION_GASES = ["CO2", "N2O", "CH4_FID"]
+
+
+def canonical_experiment(value):
+    """'Exp03' / 'Exp003' / 'Exp_03' / 3 -> 3."""
+    if isinstance(value, str):
+        return int(value.replace("Exp", "").replace("_", ""))
+    return int(value)
+
+
+def canonical_batch(value):
+    """'B01' / 'B1' / 1 -> 1."""
+    if isinstance(value, str):
+        return int(value.lstrip("B"))
+    return int(value)
+
 
 def parse_sample_name(name):
-    """Parse experiment/bottle/timepoint from a filtered-fastq sample name.
+    """Parse experiment/batch/timepoint from a filtered-fastq sample name.
 
-    Returns None for anything that is not an experiment bottle sample
+    Returns None for anything that is not an experiment batch sample
     (PCR negatives, extraction negatives, algae brick reads, washes) so
     callers can drop non-timecourse samples with a single filter.
     """
@@ -45,8 +69,8 @@ def parse_sample_name(name):
     if m is None or m.group("wash"):
         return None
     return {
-        "experiment": m.group("experiment"),
-        "bottle": m.group("bottle"),
+        "experiment": canonical_experiment(m.group("experiment")),
+        "batch": canonical_batch(m.group("batch")),
         "timepoint": m.group("timepoint"),
     }
 
@@ -58,8 +82,8 @@ def load_amplicon_run(seqtab_path, taxonomy_path):
     where n_i is the read count of ASV i in that sample (dimensionless %).
 
     Returns long df with columns:
-      sample, experiment, bottle, timepoint, ASV, relabund, <RANKS...>
-    Non-bottle samples (negatives, algae bricks, washes) are excluded.
+      sample, experiment, batch, timepoint, ASV, relabund, <RANKS...>
+    Non-batch samples (negatives, algae bricks, washes) are excluded.
     """
     seqtab = pd.read_csv(seqtab_path, index_col=0)
     taxonomy = pd.read_csv(taxonomy_path, sep="\t")
@@ -89,21 +113,87 @@ def load_amplicon_run(seqtab_path, taxonomy_path):
     return long_df
 
 
-def bottle_order_by_water_activity(bottle_metadata):
-    """Order (experiment, bottle) keys by descending water activity.
+def load_isq_ecsv(ecsv_path):
+    """Read a saltyBiomass ISQ_DATA_*.ecsv into pandas, keeping unit info.
 
-    bottle_metadata: df with columns experiment, bottle, water_activity.
-    water_activity is the WP4C meter-read a_w (dimensionless, 0-1).
-    Every bottle to be plotted must appear here; missing bottles fail
-    at lookup time in the grid builder, not silently at the bottom.
+    astropy's to_pandas() drops Quantity units, so they are captured from
+    the Table first and returned alongside.
+
+    Returns (df, units) where units maps column name -> astropy unit string
+    for every column that carries one, and df gains integer `experiment`
+    and `batch` key columns.
     """
-    ordered = bottle_metadata.sort_values("water_activity", ascending=False)
-    return list(zip(ordered["experiment"], ordered["bottle"]))
+    table = Table.read(ecsv_path)
+    units = {
+        name: str(col.unit)
+        for name, col in table.columns.items()
+        if getattr(col, "unit", None) is not None
+    }
+    df = table.to_pandas()
+    df["experiment"] = df["Experiment"].map(canonical_experiment)
+    df["batch"] = df["Batch ID"].map(canonical_batch)
+    return df, units
 
 
-def _aggregate_for_bottle(long_df, experiment, bottle, taxonomic_level, min_abundance):
+def load_batch_metadata(ecsv_path):
+    """Per-batch metadata (one row per experiment x batch) from the ECSV.
+
+    Water Activity is batch-level in saltyBiomass (broadcast from the
+    batch sheet), so duplicates across measurement rows collapse to one.
+    A batch with more than one distinct a_w in the file is a data error
+    upstream and fails loudly here.
+    """
+    df, _ = load_isq_ecsv(ecsv_path)
+    keep = ["experiment", "batch", "Water Activity"]
+    optional = ["Salt Composition", "Salt Makeup", "Contains Sulfate"]
+    keep += [c for c in optional if c in df.columns]
+    meta = df[keep].drop_duplicates()
+
+    counts = meta.groupby(["experiment", "batch"])["Water Activity"].nunique()
+    conflicted = counts[counts > 1]
+    if not conflicted.empty:
+        raise ValueError(
+            f"Multiple Water Activity values per batch: {conflicted.to_dict()}"
+        )
+    return meta.rename(columns={"Water Activity": "water_activity"})
+
+
+def load_gas_timeseries(ecsv_path, gases=None):
+    """Per-batch gas production timeseries from the ECSV.
+
+    Returns (df, units): rows are individual measurements with columns
+      experiment, batch, Replicate ID, Molecule, Days since start,
+      Cumulative Moles
+    averaging nothing — replicate bottles within a batch stay separate
+    so the caller decides how to aggregate against pooled DNA samples.
+    """
+    df, units = load_isq_ecsv(ecsv_path)
+    gases = PRODUCTION_GASES if gases is None else gases
+    cols = [
+        "experiment",
+        "batch",
+        "Replicate ID",
+        "Molecule",
+        "Days since start",
+        "Cumulative Moles",
+    ]
+    gas_df = df[df["Molecule"].isin(gases)][cols].copy()
+    return gas_df, units
+
+
+def batch_order_by_water_activity(batch_metadata):
+    """Order (experiment, batch) keys by descending water activity.
+
+    batch_metadata: df from load_batch_metadata. water_activity is the
+    meter-read a_w (dimensionless, 0-1).
+    """
+    ordered = batch_metadata.sort_values("water_activity", ascending=False)
+    return list(zip(ordered["experiment"], ordered["batch"]))
+
+
+def _aggregate_for_batch(long_df, experiment, batch, taxonomic_level, min_abundance):
     """Sum relabund to taxonomic_level per timepoint; lump minors to Other."""
-    sub = long_df[(long_df["experiment"] == experiment) & (long_df["bottle"] == bottle)]
+    sub = long_df[(long_df["experiment"] == experiment) & (long_df["batch"] == batch)]
     agg = sub.groupby(["timepoint", taxonomic_level])["relabund"].sum().reset_index()
     agg[taxonomic_level] = agg[taxonomic_level].fillna("").replace("", "unclassified")
     peak = agg.groupby(taxonomic_level)["relabund"].max()
@@ -113,7 +203,7 @@ def _aggregate_for_bottle(long_df, experiment, bottle, taxonomic_level, min_abun
 
 
 def _taxon_color_map(long_df, taxonomic_level, min_abundance):
-    """One consistent taxon->color map per amplicon across all bottles."""
+    """One consistent taxon->color map per amplicon across all batches."""
     level = long_df[taxonomic_level].fillna("").replace("", "unclassified")
     per_sample = (
         long_df.assign(**{taxonomic_level: level})
@@ -132,7 +222,7 @@ def _taxon_color_map(long_df, taxonomic_level, min_abundance):
     return color_map
 
 
-def _bottle_panel(
+def _batch_panel(
     agg, timepoints, taxonomic_level, color_map, title, width, height, show_x_labels
 ):
     """One stacked-bar cell: x = timepoints, stacks = taxa."""
@@ -209,27 +299,29 @@ def _legend_panel(color_map, taxonomic_level, height):
     return p
 
 
-def create_bottle_timecourse_grid(
+def create_batch_timecourse_grid(
     runs,
-    bottle_order,
+    batch_order,
     output_path,
+    batch_metadata=None,
     taxonomic_level="phylum",
     min_abundance=2.0,
     panel_width=240,
     panel_height=170,
     title=None,
 ):
-    """Grid of stacked-bar timecourses: rows = bottles, columns = amplicons.
+    """Grid of stacked-bar timecourses: rows = batches, columns = amplicons.
 
     runs: dict of column label -> long df from load_amplicon_run, in
         left-to-right column order (e.g. {"16S": df16, "18S": df18}).
-    bottle_order: list of (experiment, bottle) tuples, top row first --
-        typically bottle_order_by_water_activity(metadata).
+    batch_order: list of (experiment, batch) int tuples, top row first --
+        typically batch_order_by_water_activity(load_batch_metadata(ecsv)).
+    batch_metadata: optional df from load_batch_metadata; when given, row
+        titles carry the batch's a_w.
     min_abundance: peak per-sample relabund (%) below which a taxon is
         lumped into "Other".
 
-    Bottles absent from a run render as an empty cell in that column
-    (e.g. a bottle sequenced for 16S but not 18S).
+    Batches absent from a run render as an empty cell in that column.
     """
     color_maps = {
         label: _taxon_color_map(df, taxonomic_level, min_abundance)
@@ -240,24 +332,33 @@ def create_bottle_timecourse_grid(
         key=lambda t: int(t[1:]),
     )
 
+    aw_lookup = {}
+    if batch_metadata is not None:
+        aw_lookup = {
+            (row.experiment, row.batch): row.water_activity
+            for row in batch_metadata.itertuples()
+        }
+
     grid = []
-    for i, (experiment, bottle) in enumerate(bottle_order):
-        last_row = i == len(bottle_order) - 1
+    for i, (experiment, batch) in enumerate(batch_order):
+        last_row = i == len(batch_order) - 1
+        aw = aw_lookup.get((experiment, batch))
+        aw_txt = f"  a_w={aw:.3f}" if aw is not None else ""
         row = []
         for label, df in runs.items():
-            agg = _aggregate_for_bottle(
-                df, experiment, bottle, taxonomic_level, min_abundance
+            agg = _aggregate_for_batch(
+                df, experiment, batch, taxonomic_level, min_abundance
             )
             if agg.empty:
                 row.append(None)
                 continue
             row.append(
-                _bottle_panel(
+                _batch_panel(
                     agg,
                     timepoints,
                     taxonomic_level,
                     color_maps[label],
-                    title=f"{experiment} {bottle} — {label}",
+                    title=f"Exp{experiment:03d} B{batch:02d} — {label}{aw_txt}",
                     width=panel_width,
                     height=panel_height,
                     show_x_labels=last_row,
@@ -273,6 +374,6 @@ def create_bottle_timecourse_grid(
     ]
     grid.append(legend_row)
 
-    output_file(output_path, title=title or f"Bottle timecourses ({taxonomic_level})")
+    output_file(output_path, title=title or f"Batch timecourses ({taxonomic_level})")
     save(gridplot(grid, merge_tools=True))
     return output_path
