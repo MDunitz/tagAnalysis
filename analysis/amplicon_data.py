@@ -243,11 +243,25 @@ def map_timepoints_to_days(sampling_events):
         "date",
         "replicate",
     ]
-    return (
+    timepoint_map = (
         pd.concat([t0, mapped[cols]], ignore_index=True)
         .sort_values(["experiment", "batch", "days_since_start"])
         .reset_index(drop=True)
     )
+
+    # More than one row per batch-timepoint means two replicate bottles were
+    # destructively sampled on the same date, so the timepoint label alone
+    # cannot say which bottle the DNA came from. Sequencing names carry no
+    # replicate, so this is unresolvable here rather than merely ambiguous.
+    duplicated = timepoint_map[
+        timepoint_map.duplicated(["experiment", "batch", "timepoint"], keep=False)
+    ]
+    if not duplicated.empty:
+        raise ValueError(
+            "Multiple replicate bottles sampled on the same date; timepoint "
+            f"cannot be attributed to one bottle:\n{duplicated.to_string(index=False)}"
+        )
+    return timepoint_map
 
 
 def unmapped_timepoints(amplicon_df, timepoint_map):
