@@ -18,7 +18,10 @@ ID spellings differ across sources and are canonicalized on load:
 
 import re
 
+import numpy as np
 import pandas as pd
+from astropy import constants as const
+from astropy import units as u
 from astropy.table import Table
 
 SAMPLE_NAME_RE = re.compile(
@@ -30,6 +33,20 @@ SAMPLE_NAME_RE = re.compile(
 # MS m/z 15 channel is diagnostic-only in saltyBiomass
 # (incubations.constants.PRODUCTION_GASES) and is excluded for the same reason.
 PRODUCTION_GASES = ["CO2", "N2O", "CH4_FID"]
+
+# Partial molar volume of water at 25 C, used to convert the WP4C water
+# potential reading to water activity. Pure-water value: the brine's true
+# partial molar volume differs, which is a known approximation in the
+# meter-to-a_w conversion (saltyBiomass #539).
+WATER_MOLAR_VOLUME = 1.8068e-5 * u.m**3 / u.mol
+WP4C_REFERENCE_TEMPERATURE = 298.15 * u.K
+
+# WP4C stated accuracy: +/-0.05 MPa from 0 to -5 MPa, +/-1% of reading
+# beyond that. Used to decide whether two batches are matched in a_w by
+# design or genuinely separated.
+WP4C_LOW_RANGE_ACCURACY = 0.05 * u.MPa
+WP4C_LOW_RANGE_LIMIT = 5.0 * u.MPa
+WP4C_HIGH_RANGE_FRACTION = 0.01
 
 # Sequencing timepoint taken at batch setup, before the incubation clock
 # starts. It has no destructive-sampling row in the pressure sheet because
@@ -277,3 +294,94 @@ def unmapped_timepoints(amplicon_df, timepoint_map):
         on=["experiment", "batch", "timepoint"],
         how="left",
     ).query("days_since_start.isna()")[["experiment", "batch", "timepoint"]]
+
+
+def water_activity_to_potential(water_activity, temperature=WP4C_REFERENCE_TEMPERATURE):
+    """Kelvin equation, inverted: water activity -> water potential.
+
+        a_w = exp(psi * V_m / (R * T))   =>   psi = ln(a_w) * R * T / V_m
+
+    a_w         : water activity (dimensionless, 0-1)
+    psi         : water potential [MPa], negative
+    V_m         : partial molar volume of water [m^3/mol]
+    R           : molar gas constant
+    T           : sample temperature [K]
+
+    The WP4C measures psi directly; a_w in the batch sheet is the forward
+    conversion. Working in psi is what makes meter accuracy comparable
+    across the a_w range, since a fixed psi error maps to an a_w error
+    that grows ~7x from a_w=1 to a_w=0.7.
+    """
+    return (np.log(water_activity) * const.R * temperature / WATER_MOLAR_VOLUME).to(
+        u.MPa
+    )
+
+
+def meter_accuracy(potential):
+    """WP4C 1-sigma accuracy at a given water potential [MPa]."""
+    magnitude = np.abs(potential)
+    return (
+        np.where(
+            magnitude <= WP4C_LOW_RANGE_LIMIT,
+            WP4C_LOW_RANGE_ACCURACY.value,
+            WP4C_HIGH_RANGE_FRACTION * magnitude.value,
+        )
+        * u.MPa
+    )
+
+
+def matched_aw_groups(batch_metadata, temperature=WP4C_REFERENCE_TEMPERATURE):
+    """Label batches that share a water activity within meter accuracy.
+
+    Two batches are treated as matched when their water potentials differ
+    by less than the combined WP4C accuracy, sigma_combined =
+    sqrt(sigma_1^2 + sigma_2^2). Grouping is within an experiment, since
+    the matched-a_w contrasts (sulfate vs. none, Na vs. Mg) are designed
+    within an experiment, not across.
+
+    Returns batch_metadata with added columns:
+      psi_MPa, meter_sigma_MPa, aw_group (int, 1-based within experiment)
+    Batches in the same aw_group are a designed matched pair; a pair the
+    design intends but that lands in different groups is not matched at
+    the resolution the meter provides.
+    """
+    meta = batch_metadata.copy()
+    meta["psi_MPa"] = water_activity_to_potential(
+        meta["water_activity"].to_numpy(), temperature
+    ).value
+    meta["meter_sigma_MPa"] = meter_accuracy(meta["psi_MPa"].to_numpy() * u.MPa).value
+
+    groups = []
+    for experiment, block in meta.groupby("experiment", sort=True):
+        block = block.sort_values("psi_MPa", ascending=False)
+        group_id, previous = 1, None
+        labels = []
+        for row in block.itertuples():
+            if previous is not None:
+                combined = np.hypot(previous.meter_sigma_MPa, row.meter_sigma_MPa)
+                if abs(row.psi_MPa - previous.psi_MPa) >= combined:
+                    group_id += 1
+            labels.append(group_id)
+            previous = row
+        groups.append(block.assign(aw_group=labels))
+    return pd.concat(groups, ignore_index=True)
+
+
+def aw_match_report(batch_metadata, group_column="Salt Makeup"):
+    """Per matched-a_w group, the contrast it supports and its psi spread.
+
+    A group with one member supports no within-a_w contrast. A group whose
+    members all share the same `group_column` value is a replicate, not a
+    contrast.
+    """
+    grouped = matched_aw_groups(batch_metadata)
+    return (
+        grouped.groupby(["experiment", "aw_group"])
+        .agg(
+            batches=("batch", lambda s: sorted(s)),
+            contrast=(group_column, lambda s: sorted(set(s))),
+            psi_spread_MPa=("psi_MPa", lambda s: s.max() - s.min()),
+            aw_range=("water_activity", lambda s: (s.min(), s.max())),
+        )
+        .reset_index()
+    )

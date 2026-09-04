@@ -29,13 +29,21 @@ GAS_COLORS = {
 }
 
 
-def batch_order_by_water_activity(batch_metadata):
+def batch_order_by_water_activity(batch_metadata, within_experiment=True):
     """Order (experiment, batch) keys by descending water activity.
 
     batch_metadata: df from amplicon_data.load_batch_metadata.
     water_activity is the meter-read a_w (dimensionless, 0-1).
+
+    The matched-a_w contrasts (sulfate vs. none, Na vs. Mg) are designed
+    *within* an experiment, so `within_experiment=True` blocks rows by
+    experiment first and keeps each designed pair on adjacent rows. A
+    global a_w sort interleaves experiments and splits pairs apart.
     """
-    ordered = batch_metadata.sort_values("water_activity", ascending=False)
+    keys = ["experiment", "water_activity"] if within_experiment else ["water_activity"]
+    ordered = batch_metadata.sort_values(
+        keys, ascending=[True, False] if within_experiment else False
+    )
     return list(zip(ordered["experiment"], ordered["batch"]))
 
 
@@ -245,20 +253,25 @@ def create_batch_timecourse_grid(
         key=lambda t: int(t[1:]),
     )
 
-    aw_lookup = (
-        {}
-        if batch_metadata is None
-        else {
-            (row.experiment, row.batch): row.water_activity
-            for row in batch_metadata.itertuples()
-        }
-    )
+    label_lookup = {}
+    if batch_metadata is not None:
+        for record in batch_metadata.to_dict("records"):
+            label_lookup[(record["experiment"], record["batch"])] = (
+                record["water_activity"],
+                record.get("Salt Makeup"),
+            )
 
     grid = []
     for i, (experiment, batch) in enumerate(batch_order):
         last_row = i == len(batch_order) - 1
-        aw = aw_lookup.get((experiment, batch))
-        aw_txt = "" if aw is None else f"  a_w={aw:.3f}"
+        label = label_lookup.get((experiment, batch))
+        if label is None:
+            aw_txt = ""
+        else:
+            water_activity, salt_makeup = label
+            aw_txt = f"  a_w={water_activity:.3f}"
+            if salt_makeup:
+                aw_txt += f"  {salt_makeup}"
         row = []
         for label, df in runs.items():
             agg = _aggregate_for_batch(
