@@ -13,7 +13,7 @@ Loaders live in `analysis.amplicon_data`.
 import pandas as pd
 from bokeh.io import output_file
 from bokeh.layouts import gridplot
-from bokeh.models import ColumnDataSource, HoverTool, Span, Title
+from bokeh.models import ColumnDataSource, HoverTool, Range1d, Span, Title
 from bokeh.plotting import figure, save
 import seaborn as sns
 
@@ -128,7 +128,15 @@ def _community_panel(
 
 
 def _gas_panel(
-    gas_df, sampling_days, dna_replicate, moles_unit, width, height, show_x_labels
+    gas_df,
+    sampling_days,
+    dna_replicate,
+    moles_unit,
+    width,
+    height,
+    show_x_labels,
+    x_range=None,
+    y_range=None,
 ):
     """Cumulative production for one batch: x = days, y = moles, line per gas.
 
@@ -137,7 +145,14 @@ def _gas_panel(
     is the same physical vessel as the community measurement. Vertical spans
     mark destructive-sampling days.
     """
-    p = figure(width=width, height=height, toolbar_location=None, tools="")
+    p = figure(
+        width=width,
+        height=height,
+        toolbar_location=None,
+        tools="",
+        x_range=x_range,
+        y_range=y_range,
+    )
     for (molecule, replicate), series in gas_df.groupby(["Molecule", "replicate"]):
         series = series.sort_values("Days since start")
         is_dna_bottle = replicate == dna_replicate
@@ -224,6 +239,7 @@ def create_batch_timecourse_grid(
     gas_df=None,
     timepoint_map=None,
     moles_unit="mol",
+    link_gas_axes=True,
     taxonomic_level="phylum",
     min_abundance=2.0,
     panel_width=240,
@@ -239,6 +255,11 @@ def create_batch_timecourse_grid(
     gas_df: df from load_gas_timeseries; adds a gas production column.
     timepoint_map: df from map_timepoints_to_days; supplies the DNA sampling
         days marked on the gas panels and the bottle each came from.
+    link_gas_axes: share one y (moles) and x (days) range across every gas
+        panel, so curve heights are comparable down the column. The
+        community panels are always fixed at 0-100%. Set False to let each
+        panel autoscale when a low-producing batch would otherwise be a
+        flat line against the highest producer.
     min_abundance: peak per-sample relabund (%) below which a taxon lumps
         into "Other".
 
@@ -260,6 +281,17 @@ def create_batch_timecourse_grid(
                 record["water_activity"],
                 record.get("Salt Makeup"),
             )
+
+    gas_x_range = gas_y_range = None
+    if gas_df is not None and link_gas_axes:
+        plotted = gas_df[
+            gas_df.set_index(["experiment", "batch"]).index.isin(batch_order)
+        ]
+        gas_x_range = Range1d(0, plotted["Days since start"].max() * 1.02)
+        gas_y_range = Range1d(
+            min(0, plotted["Cumulative Moles"].min()),
+            plotted["Cumulative Moles"].max() * 1.05,
+        )
 
     grid = []
     for i, (experiment, batch) in enumerate(batch_order):
@@ -318,6 +350,8 @@ def create_batch_timecourse_grid(
                     width=panel_width,
                     height=panel_height,
                     show_x_labels=last_row,
+                    x_range=gas_x_range,
+                    y_range=gas_y_range,
                 )
             )
         grid.append(row)
