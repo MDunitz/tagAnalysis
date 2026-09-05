@@ -85,19 +85,28 @@ def parse_sample_name(name):
     }
 
 
-def load_amplicon_run(seqtab_path, taxonomy_path):
-    """Load a sequence table + taxonomy into a long relative-abundance frame.
+def load_amplicon_run(seqtab_path, taxonomy_path=None):
+    """Load a sequence table (+ taxonomy) into a long relative-abundance frame.
 
     Relative abundance is per-sample: relabund_i = 100 * n_i / sum_j(n_j),
     where n_i is the read count of ASV i in that sample (dimensionless %).
+
+    taxonomy_path=None loads counts alone, keyed by raw sequence in the
+    `ASV` column. Only `taxonomic_level="ASV"` is plottable in that mode --
+    it is for inspecting a run whose taxonomy has not been assigned yet,
+    not a substitute for it.
 
     Returns a long df with columns:
       sample, ASV, relabund, experiment, batch, timepoint, <RANKS...>
     """
     seqtab = pd.read_csv(seqtab_path, index_col=0)
-    taxonomy = pd.read_csv(taxonomy_path, sep="\t")
+    taxonomy = None if taxonomy_path is None else pd.read_csv(taxonomy_path, sep="\t")
 
-    counts = seqtab.rename(columns=dict(zip(taxonomy["sequence"], taxonomy["ASV_ID"])))
+    counts = (
+        seqtab
+        if taxonomy is None
+        else seqtab.rename(columns=dict(zip(taxonomy["sequence"], taxonomy["ASV_ID"])))
+    )
     relabund = counts.div(counts.sum(axis=1), axis=0) * 100
 
     long_df = (
@@ -109,6 +118,9 @@ def load_amplicon_run(seqtab_path, taxonomy_path):
     long_df = long_df.join(
         pd.DataFrame(list(parsed.dropna()), index=parsed.dropna().index)
     )
+
+    if taxonomy is None:
+        return long_df
 
     rank_cols = [
         c
