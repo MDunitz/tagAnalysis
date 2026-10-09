@@ -168,6 +168,8 @@ def test_custom_primers_flow_to_cutadapt(tmp_path):
          mock.patch.object(pipelines, "prepare_relative_abundance_data",
                            return_value=pd.DataFrame()), \
          mock.patch.object(pipelines, "create_relative_abundance_stackbars"), \
+         mock.patch.object(pipelines, "build_manifest", return_value={}), \
+         mock.patch.object(pipelines, "write_manifest"), \
          mock.patch.object(pipelines.pd, "read_csv",
                            return_value=pd.DataFrame(
                                {"s1": [1.0]}, index=["ASV_1"])):
@@ -239,6 +241,8 @@ def test_runconfig_binned_bins_flows_to_dada2(tmp_path):
          mock.patch.object(pipelines, "create_contamination_plot"), \
          mock.patch.object(pipelines, "prepare_relative_abundance_data", return_value=pd.DataFrame()), \
          mock.patch.object(pipelines, "create_relative_abundance_stackbars"), \
+         mock.patch.object(pipelines, "build_manifest", return_value={}), \
+         mock.patch.object(pipelines, "write_manifest"), \
          mock.patch.object(pipelines.pd, "read_csv",
                            return_value=pd.DataFrame({"s1": [1.0]}, index=["ASV_1"])):
         process(cfg)
@@ -262,6 +266,8 @@ def test_explicit_dada2_kwarg_overrides_config_bins(tmp_path):
          mock.patch.object(pipelines, "create_contamination_plot"), \
          mock.patch.object(pipelines, "prepare_relative_abundance_data", return_value=pd.DataFrame()), \
          mock.patch.object(pipelines, "create_relative_abundance_stackbars"), \
+         mock.patch.object(pipelines, "build_manifest", return_value={}), \
+         mock.patch.object(pipelines, "write_manifest"), \
          mock.patch.object(pipelines.pd, "read_csv",
                            return_value=pd.DataFrame({"s1": [1.0]}, index=["ASV_1"])):
         process(cfg, dada2_kwargs={"binned_quality_bins": None})

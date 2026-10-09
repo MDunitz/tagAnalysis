@@ -21,6 +21,7 @@ from .etl import (
 )
 from .dada2_pipeline import run_dada2_pipeline
 from .decontaminate import remove_contaminants
+from .manifest import build_manifest, write_manifest
 from .plotting import (
     create_contamination_plot,
     create_relative_abundance_stackbars,
@@ -103,6 +104,12 @@ def _run(config: RunConfig, clean_count_file="ASVs_counts_clean.csv",
         relative_abundance_df, config.output_path,
         taxonomic_levels=RANKS, colors=COLORS,
         img_dir=config.img_dir,
+    )
+
+    # 8. Manifest: what produced these outputs (version, reference, settings)
+    write_manifest(
+        config,
+        build_manifest(config, dada2_kwargs, counts_df, contam_asvs, predicted_controls, clean_count_file),
     )
 
     return {

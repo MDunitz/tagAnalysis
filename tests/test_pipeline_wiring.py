@@ -48,6 +48,8 @@ def _patch_all():
             pipelines, "prepare_relative_abundance_data", return_value=pd.DataFrame()),
         "create_relative_abundance_stackbars": mock.patch.object(
             pipelines, "create_relative_abundance_stackbars"),
+        "build_manifest": mock.patch.object(pipelines, "build_manifest", return_value={}),
+        "write_manifest": mock.patch.object(pipelines, "write_manifest"),
     }
     return patchers
 
