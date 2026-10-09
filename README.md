@@ -46,6 +46,19 @@ read-quality profiles per amplicon:
 
     process_16s(cfg16, dada2_kwargs={"truncLen": (240, 180), "maxEE": (2, 2)})
 
+## Run manifest
+
+Every run writes `run_manifest.json` next to its outputs, recording what
+produced them: the package version, gene and primers, the reference training
+set (file name and SHA-256), the DADA2 settings, the taxonomy confidence
+threshold, the control libraries and contaminant ASVs from decontamination,
+and the names of the counts, cleaned counts and taxonomy files. Anything that
+reads the outputs later (for example the orphanDB loader) takes the reference
+version from here instead of guessing it from a path.
+
+`ASVs_counts_clean.csv` is always written; when no contaminant is found it
+equals `ASVs_counts.csv`.
+
 ## Testing
 
     pytest
