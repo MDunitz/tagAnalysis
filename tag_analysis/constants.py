@@ -27,6 +27,13 @@ REV_RC__18s = "TTAATCAAGAACGAAAGT"
 # Taxonomic ranks emitted by IdTaxa classification, in order.
 RANKS = ["domain", "phylum", "class", "order", "family", "genus", "species"]
 
+# IdTaxa confidence (percent) below which a rank is left unclassified. 40 keeps
+# lineages the stricter default of 60 would drop.
+TAXONOMY_CONFIDENCE_THRESHOLD = 40
+
+# decontam prevalence-method probability threshold for calling a contaminant.
+DECONTAM_PREVALENCE_THRESHOLD = 0.5
+
 # Stackbar palette (teal -> green -> gold gradient family).
 COLORS = [
     "#33CCCC", "#009999", "#006666", "#669999", "#76DDDA",

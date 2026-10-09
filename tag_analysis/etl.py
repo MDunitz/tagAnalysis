@@ -1,7 +1,7 @@
 import glob
 import os 
 import subprocess
-from .constants import RANKS
+from .constants import RANKS, TAXONOMY_CONFIDENCE_THRESHOLD
 from .helper_functions import _execute_r_script
 import pandas as pd
 
@@ -330,8 +330,7 @@ def create_asv_outputs(output_dir, seqtab_nochim_file="sequence_table_nochim.csv
     
     return mapping_df, asv_tab
 
-# threshold=40 means 40% confidence as some lineages would be unclassified (default 60%)
-def assign_taxonomy(output_dir, mapping_df, reference_db_path, taxonomy_file="ASV_taxonomy.csv", ranks=RANKS, threshold=40, processors=16):
+def assign_taxonomy(output_dir, mapping_df, reference_db_path, taxonomy_file="ASV_taxonomy.csv", ranks=RANKS, threshold=TAXONOMY_CONFIDENCE_THRESHOLD, processors=16):
 
     taxonomy_results_file_path = os.path.join(output_dir, taxonomy_file)
 
