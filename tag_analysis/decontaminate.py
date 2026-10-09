@@ -2,6 +2,7 @@ import pandas as pd
 import re
 from bokeh.plotting import figure, save
 
+from .constants import DECONTAM_PREVALENCE_THRESHOLD
 from .helper_functions import _execute_r_script
 import os
 
@@ -88,7 +89,7 @@ def print_contaminating_taxa(contam_asvs, taxonomy_tab):
 # TODO consider rewriting decontam package in python to skip one round of R 
 # WIll that require benchmarking/testing before publishing results that use it?
 def remove_contaminants(counts_file_path, taxonomy_file_path, output_dir, 
-                       conc=None, threshold=0.5, clean_count_file="ASVs_counts_clean.csv"):
+                       conc=None, threshold=DECONTAM_PREVALENCE_THRESHOLD, clean_count_file="ASVs_counts_clean.csv"):
     """
     Remove contaminants using decontam R package
     Works much better if you have DNA conc info
@@ -135,14 +136,14 @@ def remove_contaminants(counts_file_path, taxonomy_file_path, output_dir,
         print(f"Removing {len(contam_asvs)} contaminating ASVs")
         clean_counts = counts_df.drop(index=contam_asvs)
         clean_relative = clean_counts.div(clean_counts.sum(axis=0), axis=1) * 100
-        
-        # Save cleaned data
-        clean_counts_file = os.path.join(output_dir, clean_count_file)
-        clean_counts.to_csv(clean_counts_file, sep='\t')
     else:
         print("No contaminants identified")
         clean_counts = counts_df.copy()
         clean_relative = relative_df.copy()
-    
+
+    # Always written (equal to the raw counts when nothing was removed): the
+    # stackbar step and downstream loaders read this file unconditionally.
+    clean_counts.to_csv(os.path.join(output_dir, clean_count_file), sep='\t')
+
     return clean_counts, clean_relative, contam_asvs, predicted_controls
 
