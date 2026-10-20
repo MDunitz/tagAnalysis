@@ -23,6 +23,10 @@ class PrimerSet:
     rev: str
     fwd_rc: str
     rev_rc: str
+    # Rank names for the taxonomy columns. Really a property of the reference
+    # database, but the standard pairs (16S+SILVA, 18S+PR2) fix it; override
+    # on RunConfig.ranks for an unusual reference.
+    ranks: "list[str]" = field(default_factory=lambda: list(constants.RANKS))
 
 
 PRIMERS_16S = PrimerSet(
@@ -39,6 +43,7 @@ PRIMERS_18S = PrimerSet(
     rev=constants.REV_SEQUENCE__18s,
     fwd_rc=constants.FWD_RC__18s,
     rev_rc=constants.REV_RC__18s,
+    ranks=list(constants.PR2_RANKS),
 )
 
 
@@ -60,6 +65,9 @@ class RunConfig:
                     existing calls keep working. Set it explicitly (or use the
                     generic process()) to run any other primer pair without
                     editing package source.
+    ranks:          taxonomy column names, in order, matching the reference
+                    database's hierarchy. None takes them from the PrimerSet
+                    (SILVA's seven for 16S, PR2's nine for 18S).
     binned_quality_bins: for NextSeq/NovaSeq data whose quality scores are binned,
                     the bin values Illumina collapses Q-scores onto (e.g.
                     [2, 12, 24, 40]). When set, DADA2 error learning uses a binned
@@ -72,6 +80,7 @@ class RunConfig:
     reference_db_path: str
     primers: "PrimerSet | None" = None
     binned_quality_bins: "list | None" = None
+    ranks: "list[str] | None" = None
 
     # Derived paths (populated in __post_init__ so callers never build them).
     deprimered_path: str = field(init=False)
@@ -86,6 +95,14 @@ class RunConfig:
         self.taxonomy_file_path = os.path.join(self.output_path, "ASV_taxonomy.csv")
         if self.img_dir is None:
             self.img_dir = os.path.join(self.output_path, "imgs")
+
+    def resolved_ranks(self):
+        """Rank names for this run: explicit config.ranks, else the PrimerSet's."""
+        if self.ranks is not None:
+            return list(self.ranks)
+        if self.primers is not None:
+            return list(self.primers.ranks)
+        return list(constants.RANKS)
 
     def ensure_dirs(self):
         """Create output directories if they do not yet exist."""

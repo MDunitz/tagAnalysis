@@ -104,3 +104,24 @@ def test_relative_abundance_sums_to_100_per_sample(amplicon, tmp_path):
     assert col_sums.apply(lambda s: s == pytest.approx(100.0, abs=1e-6)).all(), (
         f"{amplicon}: some sample relative abundances do not sum to 100"
     )
+
+
+def test_split_18s_golden_taxonomy_with_pr2_ranks():
+    """A PR2 string split with PR2_RANKS keeps all nine levels; with the SILVA
+    names the ninth-level genus and species are lost and 'class' holds Division."""
+    from tag_analysis.constants import PR2_RANKS
+
+    golden = pd.read_csv(_fixture("18s", "ASV_taxonomy.csv"), sep="\t")
+    nine = golden[golden["taxonomy"].fillna("").str.count(";") == 8]
+    if nine.empty:
+        pytest.skip("18s fixture has no nine-level PR2 strings")
+    row = nine.iloc[0]
+    parts = row["taxonomy"].split(";")
+    pr2 = etl.split_taxonomy_to_ranks(row, ranks=PR2_RANKS)
+    assert list(pr2.index) == PR2_RANKS
+    assert pr2["supergroup"] == parts[1]
+    assert pr2["division"] == parts[2]
+    assert pr2["class"] == parts[4]
+    assert pr2["species"] == parts[8]
+    silva = etl.split_taxonomy_to_ranks(row)
+    assert silva["class"] == parts[2]  # the mislabel this fixes

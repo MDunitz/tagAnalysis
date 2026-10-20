@@ -24,8 +24,15 @@ REV_SEQUENCE__18s = "ACTTTCGTTCTTGATTAA"
 FWD_RC__18s = "GGAATTACCGCGGCTGCTGG"
 REV_RC__18s = "TTAATCAAGAACGAAAGT"
 
-# Taxonomic ranks emitted by IdTaxa classification, in order.
+# Taxonomic ranks emitted by IdTaxa classification, in order. The names
+# must match the training set's hierarchy: SILVA (16S) has these seven.
 RANKS = ["domain", "phylum", "class", "order", "family", "genus", "species"]
+
+# PR2 (v5, 18S) has nine levels. Splitting a PR2 string into the seven SILVA
+# names puts Supergroup under "phylum", Division under "class", and drops
+# genus and species, so 18S runs against PR2 use these instead.
+PR2_RANKS = ["domain", "supergroup", "division", "subdivision",
+             "class", "order", "family", "genus", "species"]
 
 # IdTaxa confidence (percent) below which a rank is left unclassified. 40 keeps
 # lineages the stricter default of 60 would drop.

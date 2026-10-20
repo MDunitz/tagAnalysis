@@ -11,7 +11,7 @@ import os
 import pandas as pd
 
 from .config import RunConfig, PrimerSet, PRIMERS_16S, PRIMERS_18S
-from .constants import COLORS, RANKS
+from .constants import COLORS
 from .etl import (
     remove_primers_cutadapt,
     create_asv_outputs,
@@ -49,6 +49,7 @@ def _run(config: RunConfig, clean_count_file="ASVs_counts_clean.csv",
             "config.primers to a PrimerSet and call process()."
         )
     primers = config.primers
+    ranks = config.resolved_ranks()
     config.ensure_dirs()
     dada2_kwargs = {**_DEFAULT_DADA2_KWARGS, **(dada2_kwargs or {})}
     # RunConfig.binned_quality_bins sets the dada2 default for the dataset; an
@@ -77,7 +78,7 @@ def _run(config: RunConfig, clean_count_file="ASVs_counts_clean.csv",
 
     # 4. Taxonomy assignment against the run's reference DB
     taxonomy_df = assign_taxonomy(
-        config.output_path, mapping_df, reference_db_path=config.reference_db_path
+        config.output_path, mapping_df, reference_db_path=config.reference_db_path, ranks=ranks
     )
 
     # 5. Decontamination (decontam via R)
@@ -102,7 +103,7 @@ def _run(config: RunConfig, clean_count_file="ASVs_counts_clean.csv",
     )
     create_relative_abundance_stackbars(
         relative_abundance_df, config.output_path,
-        taxonomic_levels=RANKS, colors=COLORS,
+        taxonomic_levels=ranks, colors=COLORS,
         img_dir=config.img_dir,
     )
 
