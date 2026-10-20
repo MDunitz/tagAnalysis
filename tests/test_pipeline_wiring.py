@@ -107,3 +107,25 @@ def test_full_stage_sequence_invoked(cfg):
                   "assign_taxonomy", "remove_contaminants", "create_contamination_plot",
                   "create_relative_abundance_stackbars"]:
         assert mocks[stage].call_count == 1, f"{stage} called {mocks[stage].call_count}x"
+
+
+def test_process_18s_passes_pr2_ranks_to_taxonomy_and_plots(cfg):
+    from tag_analysis.constants import PR2_RANKS, RANKS
+
+    mocks, _ = _run_with_mocks(pipelines.process_18s, cfg)
+    _, t_kwargs = mocks["assign_taxonomy"].call_args
+    assert t_kwargs["ranks"] == PR2_RANKS
+    _, p_kwargs = mocks["create_relative_abundance_stackbars"].call_args
+    assert p_kwargs["taxonomic_levels"] == PR2_RANKS
+
+    cfg.primers = None  # process_18s set it; let process_16s inject its own pair
+    mocks, _ = _run_with_mocks(pipelines.process_16s, cfg)
+    _, t_kwargs = mocks["assign_taxonomy"].call_args
+    assert t_kwargs["ranks"] == RANKS
+
+
+def test_config_ranks_override_primer_ranks(cfg):
+    cfg.ranks = ["a", "b", "c"]
+    mocks, _ = _run_with_mocks(pipelines.process_18s, cfg)
+    _, t_kwargs = mocks["assign_taxonomy"].call_args
+    assert t_kwargs["ranks"] == ["a", "b", "c"]
