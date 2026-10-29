@@ -65,6 +65,11 @@ class RunConfig:
                     [2, 12, 24, 40]). When set, DADA2 error learning uses a binned
                     error function. Leave None for unbinned MiSeq data. Confirm the
                     exact bins against the quality-profile heatmap per run.
+    extraction_sheet: DNA extraction sheet (CSV path or Google Sheets URL) with
+                    "TAG ID" and "Extraction Batch ID" columns. When set,
+                    decontam runs within each extraction batch against that
+                    batch's own kit negatives instead of pooling every negative
+                    in the run. Leave None for the pooled behavior.
     """
     data_path: str
     output_path: str
@@ -72,6 +77,7 @@ class RunConfig:
     reference_db_path: str
     primers: "PrimerSet | None" = None
     binned_quality_bins: "list | None" = None
+    extraction_sheet: "str | None" = None
 
     # Derived paths (populated in __post_init__ so callers never build them).
     deprimered_path: str = field(init=False)
