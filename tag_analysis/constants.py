@@ -5,6 +5,8 @@ taxonomic ranks, plot palette). Per-run configuration (data paths,
 dataset name, reference DB path) lives in `config.RunConfig`.
 """
 
+import re
+
 # --- 16S rRNA primers (515F/926R, Parada et al. 2016; Orphan lab tag set) ---
 # Forward 515F, reverse 926R (Y/M/R = IUPAC degenerate bases).
 # Amplifies the V4-V5 region (~373 bp between primers). NB: the reverse primer
@@ -33,6 +35,16 @@ TAXONOMY_CONFIDENCE_THRESHOLD = 40
 
 # decontam prevalence-method probability threshold for calling a contaminant.
 DECONTAM_PREVALENCE_THRESHOLD = 0.5
+
+# Extraction sheet columns used to place each library in its DNA extraction
+# batch (see extraction_metadata.py).
+EXTRACTION_TAG_ID_COL = "TAG ID"
+EXTRACTION_BATCH_COL = "Extraction Batch ID"
+
+# Sequencing-facility tag number at the start of a library name:
+# GP_<tag number>_<sample>_S<n>..., e.g. "GP_52_Exp03_B01_T0_S147_R1_filtered.fastq.gz"
+# -> 52. Keep this comment in sync with the pattern.
+LIBRARY_TAG_ID_RE = re.compile(r"^GP_(?P<tag_id>\d+)_")
 
 # Stackbar palette (teal -> green -> gold gradient family).
 COLORS = [
