@@ -52,7 +52,10 @@ def build_manifest(config: RunConfig, dada2_kwargs, counts_df, contam_asvs,
         "taxonomy_confidence_threshold": TAXONOMY_CONFIDENCE_THRESHOLD,
         "decontamination": {
             "prevalence_threshold": DECONTAM_PREVALENCE_THRESHOLD,
-            "extraction_sheet": config.extraction_sheet,
+            "library_batches": None if config.library_batches is None else {
+                "file": os.path.basename(config.library_batches),
+                "sha256": file_sha256(config.library_batches),
+            },
             "control_libraries": controls,
             "contaminant_asvs": list(contam_asvs),
         },

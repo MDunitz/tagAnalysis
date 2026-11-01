@@ -3,11 +3,7 @@ import re
 from bokeh.plotting import figure, save
 
 from .constants import DECONTAM_PREVALENCE_THRESHOLD
-from .extraction_metadata import (
-    assign_extraction_batches,
-    read_extraction_sheet,
-    tag_id_to_batch,
-)
+from .library_batches import assign_extraction_batches, read_library_batches
 from .helper_functions import _execute_r_script
 import os
 
@@ -146,7 +142,7 @@ def print_contaminating_taxa(contam_asvs, taxonomy_tab):
 # WIll that require benchmarking/testing before publishing results that use it?
 def remove_contaminants(counts_file_path, taxonomy_file_path, output_dir, 
                        conc=None, threshold=DECONTAM_PREVALENCE_THRESHOLD, clean_count_file="ASVs_counts_clean.csv",
-                       extraction_sheet=None):
+                       library_batches=None):
     """
     Remove contaminants using decontam R package
     Works much better if you have DNA conc info
@@ -157,13 +153,13 @@ def remove_contaminants(counts_file_path, taxonomy_file_path, output_dir,
     output_dir: Output directory
     conc: list of concentrations (same order as samples) or None
     threshold: threshold for prevalence method
-    extraction_sheet: DNA extraction sheet (CSV path or Google Sheets URL) or
-        None. When given, prevalence decontam runs within each extraction
-        batch against that batch's negatives (see
-        run_decontam_prevalence_by_batch); libraries are placed by their TAG ID.
+    library_batches: path to a library -> extraction batch CSV (see
+        library_batches.py) or None. When given, prevalence decontam runs
+        within each extraction batch against that batch's negatives (see
+        run_decontam_prevalence_by_batch).
     """
-    if extraction_sheet is not None and conc is not None:
-        raise ValueError("extraction_sheet (batch-aware prevalence) and conc (frequency) are mutually exclusive")
+    if library_batches is not None and conc is not None:
+        raise ValueError("library_batches (batch-aware prevalence) and conc (frequency) are mutually exclusive")
     contam_results_file_path = os.path.join(output_dir, 'contam_results.csv')
     # Read in the data
     counts_df = pd.read_csv(counts_file_path, index_col=0, sep='\t')
@@ -176,11 +172,10 @@ def remove_contaminants(counts_file_path, taxonomy_file_path, output_dir,
     
     if any(predicted_controls) or (conc is not None and len(conc) == len(counts_df.columns)):
         
-        if extraction_sheet is not None:
+        if library_batches is not None:
             print('Decontam using "prevalence" method within extraction batches')
             batches = assign_extraction_batches(
-                counts_df.columns, predicted_controls,
-                tag_id_to_batch(read_extraction_sheet(extraction_sheet)),
+                counts_df.columns, predicted_controls, read_library_batches(library_batches)
             )
             contam_results = run_decontam_prevalence_by_batch(
                 counts_df, output_dir, predicted_controls, batches, threshold

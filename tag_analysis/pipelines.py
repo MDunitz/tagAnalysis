@@ -84,7 +84,7 @@ def _run(config: RunConfig, clean_count_file="ASVs_counts_clean.csv",
     clean_counts_df, clean_relative_df, contam_asvs, predicted_controls = remove_contaminants(
         config.counts_file_path, config.taxonomy_file_path, config.output_path,
         clean_count_file=clean_count_file,
-        extraction_sheet=config.extraction_sheet,
+        library_batches=config.library_batches,
     )
 
     # 6. Contamination plot

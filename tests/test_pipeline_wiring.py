@@ -109,12 +109,12 @@ def test_full_stage_sequence_invoked(cfg):
         assert mocks[stage].call_count == 1, f"{stage} called {mocks[stage].call_count}x"
 
 
-def test_extraction_sheet_reaches_decontam(cfg):
-    cfg.extraction_sheet = "https://docs.google.com/spreadsheets/d/abc/edit"
+def test_library_batches_reaches_decontam(cfg):
+    cfg.library_batches = "library_batches.csv"
     mocks, _ = _run_with_mocks(pipelines.process_16s, cfg)
-    assert mocks["remove_contaminants"].call_args.kwargs["extraction_sheet"] == cfg.extraction_sheet
+    assert mocks["remove_contaminants"].call_args.kwargs["library_batches"] == cfg.library_batches
 
 
-def test_no_extraction_sheet_keeps_pooled_decontam(cfg):
+def test_no_library_batches_keeps_pooled_decontam(cfg):
     mocks, _ = _run_with_mocks(pipelines.process_16s, cfg)
-    assert mocks["remove_contaminants"].call_args.kwargs["extraction_sheet"] is None
+    assert mocks["remove_contaminants"].call_args.kwargs["library_batches"] is None
