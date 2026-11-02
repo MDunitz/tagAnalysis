@@ -64,6 +64,7 @@ def test_manifest_records_decontamination(cfg, counts_df):
     decontamination = _manifest(cfg, counts_df)["decontamination"]
     assert decontamination == {
         "prevalence_threshold": constants.DECONTAM_PREVALENCE_THRESHOLD,
+        "extraction_sheet": None,
         "control_libraries": ["PCRBlank"],
         "contaminant_asvs": ["ASV_2"],
     }

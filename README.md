@@ -46,6 +46,31 @@ read-quality profiles per amplicon:
 
     process_16s(cfg16, dada2_kwargs={"truncLen": (240, 180), "maxEE": (2, 2)})
 
+## Batch-aware decontamination
+
+By default every negative control in the run (libraries matching
+`identify_control_samples`) is pooled against every sample. When DNA was
+extracted in several batches, each with its own kit negative, pass the
+extraction sheet so each library is judged against its own batch's negatives:
+
+    cfg16 = RunConfig(..., extraction_sheet="https://docs.google.com/spreadsheets/d/<id>/edit")
+
+`extraction_sheet` is a CSV path or a Google Sheets link (shared readable by
+link; it is fetched as CSV). The sheet needs a `TAG ID` column and an
+`Extraction Batch ID` column. `TAG ID` holds the sequencing tag number(s) of
+the libraries made from that extraction, i.e. the `<n>` in `GP_<n>_...` library
+names. List several numbers in one cell when one extraction went into more
+than one library (e.g. `3, 52` for its 16S and 18S libraries).
+
+- Prevalence decontam runs once per batch, on that batch's libraries plus any
+  control with no extraction row (e.g. a PCR negative, which applies to every
+  batch).
+- An ASV's p-value is its minimum across batches (decontam's
+  `batch.combine="minimum"`). Per-batch p-values are kept as
+  `p_prev_batch_<b>` columns in `contam_results.csv`.
+- A non-control library with no `TAG ID` row raises, naming the library.
+  Libraries are never silently pooled.
+
 ## Run manifest
 
 Every run writes `run_manifest.json` next to its outputs, recording what
