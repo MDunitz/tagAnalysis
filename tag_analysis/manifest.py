@@ -29,6 +29,24 @@ def file_sha256(path):
     return digest.hexdigest()
 
 
+def decontamination_record(library_batches, counts_df, contam_asvs, predicted_controls):
+    """Manifest section describing one decontam pass.
+
+    counts_df is the raw ASV-by-library counts table; predicted_controls is
+    aligned with its columns; library_batches is the batch-table path or None.
+    """
+    controls = [library for library, is_control in zip(counts_df.columns, predicted_controls) if is_control]
+    return {
+        "prevalence_threshold": DECONTAM_PREVALENCE_THRESHOLD,
+        "library_batches": None if library_batches is None else {
+            "file": os.path.basename(library_batches),
+            "sha256": file_sha256(library_batches),
+        },
+        "control_libraries": controls,
+        "contaminant_asvs": list(contam_asvs),
+    }
+
+
 def build_manifest(config: RunConfig, dada2_kwargs, counts_df, contam_asvs,
                    predicted_controls, clean_count_file):
     """
@@ -37,7 +55,6 @@ def build_manifest(config: RunConfig, dada2_kwargs, counts_df, contam_asvs,
     counts_df is the raw ASV-by-library counts table; predicted_controls is
     aligned with its columns.
     """
-    controls = [library for library, is_control in zip(counts_df.columns, predicted_controls) if is_control]
     return {
         "tag_analysis_version": version(PACKAGE_NAME),
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -50,15 +67,9 @@ def build_manifest(config: RunConfig, dada2_kwargs, counts_df, contam_asvs,
         },
         "dada2": dada2_kwargs,
         "taxonomy_confidence_threshold": TAXONOMY_CONFIDENCE_THRESHOLD,
-        "decontamination": {
-            "prevalence_threshold": DECONTAM_PREVALENCE_THRESHOLD,
-            "library_batches": None if config.library_batches is None else {
-                "file": os.path.basename(config.library_batches),
-                "sha256": file_sha256(config.library_batches),
-            },
-            "control_libraries": controls,
-            "contaminant_asvs": list(contam_asvs),
-        },
+        "decontamination": decontamination_record(
+            config.library_batches, counts_df, contam_asvs, predicted_controls
+        ),
         "outputs": {
             "counts": os.path.basename(config.counts_file_path),
             "clean_counts": clean_count_file,
@@ -70,6 +81,30 @@ def build_manifest(config: RunConfig, dada2_kwargs, counts_df, contam_asvs,
 def write_manifest(config: RunConfig, manifest):
     """Write the manifest into the run's output directory; returns its path."""
     path = os.path.join(config.output_path, MANIFEST_FILE)
+    with open(path, "w") as handle:
+        json.dump(manifest, handle, indent=2)
+    return path
+
+
+def record_redecontamination(output_dir, record):
+    """Replace the decontamination section of an existing run's manifest.
+
+    Used when decontam is rerun on persisted outputs (see redecontam.py): the
+    upstream sections (reference, DADA2 settings) still describe how the counts
+    were made, so only decontamination is replaced, stamped with when and by
+    which package version. A run from before manifests existed gets a manifest
+    holding only that section.
+    """
+    path = os.path.join(output_dir, MANIFEST_FILE)
+    manifest = {}
+    if os.path.exists(path):
+        with open(path) as handle:
+            manifest = json.load(handle)
+    manifest["decontamination"] = {
+        **record,
+        "rerun_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "rerun_tag_analysis_version": version(PACKAGE_NAME),
+    }
     with open(path, "w") as handle:
         json.dump(manifest, handle, indent=2)
     return path
