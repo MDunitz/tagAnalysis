@@ -50,26 +50,32 @@ read-quality profiles per amplicon:
 
 By default every negative control in the run (libraries matching
 `identify_control_samples`) is pooled against every sample. When DNA was
-extracted in several batches, each with its own kit negative, pass the
-extraction sheet so each library is judged against its own batch's negatives:
+extracted in several batches, each with its own kit negative, pass a
+library -> extraction batch table so each library is judged against its own
+batch's negatives:
 
-    cfg16 = RunConfig(..., extraction_sheet="https://docs.google.com/spreadsheets/d/<id>/edit")
+    cfg16 = RunConfig(..., library_batches="path/to/library_batches.csv")
 
-`extraction_sheet` is a CSV path or a Google Sheets link (shared readable by
-link; it is fetched as CSV). The sheet needs a `TAG ID` column and an
-`Extraction Batch ID` column. `TAG ID` holds the sequencing tag number(s) of
-the libraries made from that extraction, i.e. the `<n>` in `GP_<n>_...` library
-names. List several numbers in one cell when one extraction went into more
-than one library (e.g. `3, 52` for its 16S and 18S libraries).
+The table is a CSV with two columns:
 
-- Prevalence decontam runs once per batch, on that batch's libraries plus any
-  control with no extraction row (e.g. a PCR negative, which applies to every
-  batch).
+| column | meaning |
+|---|---|
+| `library` | library ID: the forward-read fastq name without `_R1_001.fastq.gz` (e.g. `GP_3_Exp03_B01_T0_S99`) |
+| `extraction_batch` | the DNA extraction batch; blank for a shared control (e.g. a PCR negative) |
+
+The package does not read any project's extraction records. Each project builds
+this table from its own records, so a change in how a lab keeps its sheet is a
+change to that project's code, not to this package.
+
+- Prevalence decontam runs once per batch, on that batch's libraries plus the
+  shared controls (blank batch, or a control absent from the table).
 - An ASV's p-value is its minimum across batches (decontam's
   `batch.combine="minimum"`). Per-batch p-values are kept as
   `p_prev_batch_<b>` columns in `contam_results.csv`.
-- A non-control library with no `TAG ID` row raises, naming the library.
-  Libraries are never silently pooled.
+- A non-control library missing from the table raises, naming it; a library
+  listed twice raises.
+- `run_manifest.json` records the table's file name and SHA-256, so a run can
+  be traced to the exact table it used.
 
 ## Run manifest
 
