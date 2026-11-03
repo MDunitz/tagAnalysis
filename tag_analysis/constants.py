@@ -43,15 +43,17 @@ TAXONOMY_CONFIDENCE_THRESHOLD = 40
 # decontam prevalence-method probability threshold for calling a contaminant.
 DECONTAM_PREVALENCE_THRESHOLD = 0.5
 
-# Extraction sheet columns used to place each library in its DNA extraction
-# batch (see extraction_metadata.py).
-EXTRACTION_TAG_ID_COL = "TAG ID"
-EXTRACTION_BATCH_COL = "Extraction Batch ID"
+# Library -> DNA extraction batch table (see library_batches.py): one row per
+# library, keyed by library ID; a blank batch marks a shared control (e.g. a
+# PCR negative) that applies to every batch.
+LIBRARY_BATCHES_LIBRARY_COL = "library"
+LIBRARY_BATCHES_BATCH_COL = "extraction_batch"
 
-# Sequencing-facility tag number at the start of a library name:
-# GP_<tag number>_<sample>_S<n>..., e.g. "GP_52_Exp03_B01_T0_S147_R1_filtered.fastq.gz"
-# -> 52. Keep this comment in sync with the pattern.
-LIBRARY_TAG_ID_RE = re.compile(r"^GP_(?P<tag_id>\d+)_")
+# A library ID is its forward-read fastq name without the read/extension
+# suffix: the raw "<id>_R1_001.fastq.gz" and the filtered
+# "<id>_R1_filtered.fastq.gz" (the counts-table column) share the same <id>,
+# e.g. "GP_3_Exp03_B01_T0_S99". Keep this comment in sync with the pattern.
+LIBRARY_ID_SUFFIX_RE = re.compile(r"_R1_(?:001|filtered)\.fastq\.gz$")
 
 # Stackbar palette (teal -> green -> gold gradient family).
 COLORS = [

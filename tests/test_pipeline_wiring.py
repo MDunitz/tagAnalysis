@@ -129,12 +129,14 @@ def test_config_ranks_override_primer_ranks(cfg):
     mocks, _ = _run_with_mocks(pipelines.process_18s, cfg)
     _, t_kwargs = mocks["assign_taxonomy"].call_args
     assert t_kwargs["ranks"] == ["a", "b", "c"]
-def test_extraction_sheet_reaches_decontam(cfg):
-    cfg.extraction_sheet = "https://docs.google.com/spreadsheets/d/abc/edit"
-    mocks, _ = _run_with_mocks(pipelines.process_16s, cfg)
-    assert mocks["remove_contaminants"].call_args.kwargs["extraction_sheet"] == cfg.extraction_sheet
 
 
-def test_no_extraction_sheet_keeps_pooled_decontam(cfg):
+def test_library_batches_reaches_decontam(cfg):
+    cfg.library_batches = "library_batches.csv"
     mocks, _ = _run_with_mocks(pipelines.process_16s, cfg)
-    assert mocks["remove_contaminants"].call_args.kwargs["extraction_sheet"] is None
+    assert mocks["remove_contaminants"].call_args.kwargs["library_batches"] == cfg.library_batches
+
+
+def test_no_library_batches_keeps_pooled_decontam(cfg):
+    mocks, _ = _run_with_mocks(pipelines.process_16s, cfg)
+    assert mocks["remove_contaminants"].call_args.kwargs["library_batches"] is None

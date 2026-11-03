@@ -1,4 +1,4 @@
-"""Batch-aware decontam: extraction sheet -> library batches -> per-batch calls."""
+"""Batch-aware decontam: library-batch table -> library batches -> per-batch calls."""
 
 from unittest import mock
 
@@ -7,16 +7,11 @@ import pandas as pd
 import pytest
 
 from tag_analysis import decontaminate
-from tag_analysis.extraction_metadata import (
+from tag_analysis.library_batches import (
     assign_extraction_batches,
-    google_sheet_csv_url,
-    library_tag_id,
-    parse_tag_ids,
-    read_extraction_sheet,
-    tag_id_to_batch,
+    library_id,
+    read_library_batches,
 )
-
-SHEET_ID = "1P0FmwyJ3e6OaDkcs_5RxYZqTm7p2SfeNE3L1koMkqbo"
 
 LIBRARIES = [
     "GP_1_16S_PCR_Neg_S97_R1_filtered.fastq.gz",
@@ -29,70 +24,56 @@ IS_CONTROL = [True, True, False, True, False]
 
 
 @pytest.fixture
-def sheet():
-    return pd.DataFrame(
+def table_path(tmp_path):
+    path = tmp_path / "library_batches.csv"
+    pd.DataFrame(
         {
-            "Extraction Batch ID": [1, 1, 2, 2, 2],
-            "Sample ID": [None, "Exp03_B01", None, "Exp04_B01", "Exp04_B02"],
-            "TAG ID": ["2, 51", "3;52", "12 61", "13", None],
+            "library": [
+                "GP_1_16S_PCR_Neg_S97",
+                "GP_2_Neg_1_S98",
+                "GP_3_Exp03_B01_T0_S99",
+                "GP_12_Neg_2_S108",
+                "GP_13_Exp04_B01_T0_S109",
+            ],
+            "extraction_batch": [None, 1, 1, 2, 2],
         }
-    )
+    ).to_csv(path, index=False)
+    return path
 
 
-def test_google_sheet_csv_url_keeps_gid():
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit?gid=123#gid=123"
-    assert google_sheet_csv_url(url) == (
-        f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=123"
-    )
+def test_library_id_strips_raw_and_filtered_suffixes():
+    assert library_id("GP_3_Exp03_B01_T0_S99_R1_001.fastq.gz") == "GP_3_Exp03_B01_T0_S99"
+    assert library_id(LIBRARIES[2]) == "GP_3_Exp03_B01_T0_S99"
 
 
-def test_google_sheet_csv_url_defaults_to_first_tab():
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
-    assert google_sheet_csv_url(url).endswith("export?format=csv&gid=0")
+def test_read_library_batches_blank_batch_is_shared(table_path):
+    batches = read_library_batches(table_path)
+    assert batches["GP_1_16S_PCR_Neg_S97"] is None
+    assert batches["GP_13_Exp04_B01_T0_S109"] == 2
 
 
-def test_read_extraction_sheet_rewrites_google_url():
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit?gid=0#gid=0"
-    with mock.patch.object(pd, "read_csv", return_value=pd.DataFrame()) as m:
-        read_extraction_sheet(url)
-    assert m.call_args.args[0] == google_sheet_csv_url(url)
+def test_read_library_batches_rejects_duplicate_library(tmp_path):
+    path = tmp_path / "dup.csv"
+    pd.DataFrame({"library": ["a", "a"], "extraction_batch": [1, 2]}).to_csv(path, index=False)
+    with pytest.raises(ValueError, match="more than once"):
+        read_library_batches(path)
 
 
-def test_parse_tag_ids_accepts_mixed_separators():
-    assert parse_tag_ids("3, 52") == [3, 52]
-    assert parse_tag_ids("12 61;7") == [12, 61, 7]
-    assert parse_tag_ids("13") == [13]
-
-
-def test_parse_tag_ids_numeric_cell():
-    """A TAG ID column with blanks reads back as float (13.0)."""
-    assert parse_tag_ids(13.0) == [13]
-
-
-def test_tag_id_to_batch_maps_every_listed_tag(sheet):
-    assert tag_id_to_batch(sheet) == {2: 1, 51: 1, 3: 1, 52: 1, 12: 2, 61: 2, 13: 2}
-
-
-def test_tag_id_to_batch_rejects_tag_in_two_batches(sheet):
-    sheet.loc[4, "TAG ID"] = "3"
-    with pytest.raises(ValueError, match="TAG ID 3"):
-        tag_id_to_batch(sheet)
-
-
-def test_library_tag_id():
-    assert library_tag_id(LIBRARIES[2]) == 3
-    assert library_tag_id("algaebrick_B06") is None
-
-
-def test_assign_batches_pcr_negative_is_shared(sheet):
-    batches = assign_extraction_batches(LIBRARIES, IS_CONTROL, tag_id_to_batch(sheet))
+def test_assign_batches_matches_columns_by_library_id(table_path):
+    batches = assign_extraction_batches(LIBRARIES, IS_CONTROL, read_library_batches(table_path))
     assert batches == [None, 1, 1, 2, 2]
 
 
-def test_assign_batches_rejects_unplaced_sample(sheet):
+def test_assign_batches_control_missing_from_table_is_shared(table_path):
+    libs = LIBRARIES + ["GP_49_18S_PCR_Neg_S144_R1_filtered.fastq.gz"]
+    batches = assign_extraction_batches(libs, IS_CONTROL + [True], read_library_batches(table_path))
+    assert batches[-1] is None
+
+
+def test_assign_batches_rejects_unplaced_sample(table_path):
     libs = LIBRARIES + ["GP_14_Exp04_B02_T0_S110_R1_filtered.fastq.gz"]
     with pytest.raises(ValueError, match="GP_14_Exp04_B02"):
-        assign_extraction_batches(libs, IS_CONTROL + [False], tag_id_to_batch(sheet))
+        assign_extraction_batches(libs, IS_CONTROL + [False], read_library_batches(table_path))
 
 
 def test_combine_batch_p_values_takes_minimum_and_skips_nan():
@@ -142,25 +123,22 @@ def test_by_batch_rejects_batch_without_any_control(tmp_path):
         )
 
 
-def test_remove_contaminants_rejects_sheet_with_conc(tmp_path):
+def test_remove_contaminants_rejects_table_with_conc(tmp_path):
     with pytest.raises(ValueError, match="mutually exclusive"):
         decontaminate.remove_contaminants(
-            "c.csv", "t.csv", str(tmp_path), conc=[1.0], extraction_sheet="s.csv"
+            "c.csv", "t.csv", str(tmp_path), conc=[1.0], library_batches="b.csv"
         )
 
 
-def test_remove_contaminants_uses_extraction_batches(tmp_path, sheet):
+def test_remove_contaminants_uses_library_batches(tmp_path, table_path):
     counts = pd.DataFrame(
         [[5, 1, 9, 1, 8], [0, 3, 0, 4, 0]], index=["ASV_1", "ASV_2"], columns=LIBRARIES
     )
-    counts_path, tax_path, sheet_path = (
-        tmp_path / n for n in ("c.csv", "t.csv", "s.csv")
-    )
+    counts_path, tax_path = (tmp_path / n for n in ("c.csv", "t.csv"))
     counts.to_csv(counts_path, sep="\t")
     pd.DataFrame({"ASV_ID": ["ASV_1", "ASV_2"], "phylum": ["A", "B"]}).to_csv(
         tax_path, sep="\t", index=False
     )
-    sheet.to_csv(sheet_path, index=False)
 
     def fake_prevalence(path, results_path, controls, threshold):
         return pd.DataFrame({"ASV": ["ASV_1", "ASV_2"], "p_prev": [0.9, 0.01]})
@@ -172,7 +150,7 @@ def test_remove_contaminants_uses_extraction_batches(tmp_path, sheet):
             str(counts_path),
             str(tax_path),
             str(tmp_path),
-            extraction_sheet=str(sheet_path),
+            library_batches=str(table_path),
         )
     assert contam == ["ASV_2"]
     assert list(clean.index) == ["ASV_1"]

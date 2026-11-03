@@ -64,7 +64,7 @@ def test_manifest_records_decontamination(cfg, counts_df):
     decontamination = _manifest(cfg, counts_df)["decontamination"]
     assert decontamination == {
         "prevalence_threshold": constants.DECONTAM_PREVALENCE_THRESHOLD,
-        "extraction_sheet": None,
+        "library_batches": None,
         "control_libraries": ["PCRBlank"],
         "contaminant_asvs": ["ASV_2"],
     }
@@ -101,3 +101,13 @@ def test_clean_counts_written_when_no_contaminants(cfg, counts_df):
     assert contam_asvs == []
     clean = pd.read_csv(f"{cfg.output_path}/{CLEAN_COUNT_FILE}", index_col=0, sep="\t")
     pd.testing.assert_frame_equal(clean, no_controls)
+
+
+def test_manifest_hashes_library_batches_table(cfg, counts_df, tmp_path):
+    table = tmp_path / "library_batches.csv"
+    table.write_bytes(b"library,extraction_batch\nsampleA,1\n")
+    cfg.library_batches = str(table)
+    assert _manifest(cfg, counts_df)["decontamination"]["library_batches"] == {
+        "file": "library_batches.csv",
+        "sha256": hashlib.sha256(table.read_bytes()).hexdigest(),
+    }
