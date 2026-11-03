@@ -77,6 +77,20 @@ change to that project's code, not to this package.
 - `run_manifest.json` records the table's file name and SHA-256, so a run can
   be traced to the exact table it used.
 
+### Applying it to a finished run
+
+Decontam reads only `ASVs_counts.csv` and `ASV_taxonomy.csv`, so a finished
+run can be re-decontaminated without primer removal, DADA2 or taxonomy:
+
+    make redecontam INPUT_DIR=path/to/output LIBRARY_BATCHES=path/to/library_batches.csv
+    # or: python -m tag_analysis.redecontam path/to/output --library-batches path/to/library_batches.csv
+
+This rewrites `ASVs_counts_clean.csv`, `contam_results.csv`, the
+contamination plot and the stackbars. It replaces only the
+`decontamination` section of `run_manifest.json`, stamped with `rerun_at`
+and `rerun_tag_analysis_version`; the upstream sections still describe how the
+counts were made. Needs R with `decontam`.
+
 ## Run manifest
 
 Every run writes `run_manifest.json` next to its outputs, recording what
